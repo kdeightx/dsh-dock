@@ -1,0 +1,4 @@
+# dsh-system-restart: 侧边栏「重启 DSH」按钮。
+- insert:
+    - id: system-restart
+      name: 'dsh-system-restart'

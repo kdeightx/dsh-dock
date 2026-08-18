@@ -2,11 +2,9 @@
 // Exposes HTTP endpoints used by the browser half:
 //   POST /dsh-session-delete/resolve  { title }   -> unique session match by title
 //   POST /dsh-session-delete/delete   { sessionId } -> permanent session deletion
-//   GET  /dsh-session-delete/plugins              -> user-installed plugin list (with enabled state)
-//   POST /dsh-session-delete/plugins/toggle { entryId, enabled } -> hot enable/disable
-import { rm, readFile, writeFile } from 'node:fs/promises'
-import { appendFileSync, existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { rm } from 'node:fs/promises'
+import { appendFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const diag = (line) => {
   try {
@@ -15,7 +13,7 @@ const diag = (line) => {
 }
 
 /** Hard service dependencies: without these the plugin waits and never applies. */
-const inject = ['webServer', 'sessionQuery', 'sessionPersistence', 'workspaceRegistry', 'agents', 'sessions', 'clientModules', 'loader']
+const inject = ['webServer', 'sessionQuery', 'sessionPersistence', 'workspaceRegistry', 'agents', 'sessions']
 
 const readBody = (req) => new Promise((resolve) => {
   let data = ''
@@ -128,79 +126,6 @@ async function deleteSession(ctx, sessionId) {
   return { ok: true, live: liveDetached }
 }
 
-/** Find the loader entry whose package name matches a graph entry id. */
-function findEntryByPackage(loader, packageName) {
-  for (const entry of loader.entries()) {
-    if (entry.options.name === packageName) return entry
-  }
-  return undefined
-}
-
-/** Persist one entry's disabled flag into the profile's cordis.patch.yml so
- *  the switch survives restarts (dsh regenerates cordis.yml at boot from the
- *  patch layers). Returns the patch file path. */
-async function persistPatchDisabled(ctx, entryId, disabled) {
-  const loader = ctx.get('loader')
-  if (loader === undefined || typeof loader.filename !== 'string') return null
-  const patchPath = join(dirname(loader.filename), 'cordis.patch.yml')
-  let content = ''
-  if (existsSync(patchPath)) {
-    try { content = await readFile(patchPath, 'utf8') } catch { content = '' }
-  }
-  const lines = content.split('\n')
-  // Locate the block "- id: <entryId>" (a top-level list item followed by
-  // indented keys). We rewrite only that item's disabled key.
-  const blockStart = lines.findIndex((line) => /^\s*- id:\s*/.test(line) && line.includes(entryId))
-  let next = ''
-  if (blockStart === -1) {
-    // Append a new block at the end.
-    const chunk = disabled
-      ? `- id: ${entryId}\n  disabled: true\n`
-      : `- id: ${entryId}\n`
-    return writeFile(patchPath, content.trimEnd() + (content.trimEnd() === '' ? '' : '\n') + '\n' + chunk, 'utf8').then(() => patchPath)
-  }
-  // Find the end of the block: next top-level "- id:" line.
-  let blockEnd = lines.length
-  for (let i = blockStart + 1; i < lines.length; i += 1) {
-    if (/^\s*- id:/.test(lines[i])) { blockEnd = i; break }
-  }
-  const before = lines.slice(0, blockStart)
-  const after = lines.slice(blockEnd)
-  const header = lines[blockStart]
-  const rest = lines.slice(blockStart + 1, blockEnd)
-  const hasDisabled = rest.some((line) => /^\s*disabled:/.test(line))
-  const filtered = rest.filter((line) => !/^\s*disabled:/.test(line))
-  const body = disabled
-    ? [header, '  disabled: true', ...filtered]
-    : [header, ...filtered]
-  next = [...before, ...body, ...after].join('\n')
-  return writeFile(patchPath, next, 'utf8').then(() => patchPath)
-}
-
-/** Hot toggle one plugin entry: entry.update handles dispose/init and the
- *  loader's own persistence; we additionally persist into cordis.patch.yml. */
-async function togglePlugin(ctx, entryId, enabled) {
-  const selfId = ctx.fiber !== undefined && ctx.fiber.entry !== undefined ? String(ctx.fiber.entry.id) : 'session-delete-menu'
-  if (String(entryId) === selfId) {
-    return { ok: false, error: '不能禁用插件管理器自身（禁用后没有入口可以恢复）' }
-  }
-  const loader = ctx.get('loader')
-  if (loader === undefined) return { ok: false, error: 'loader unavailable' }
-  const entry = loader.entries().find((candidate) => String(candidate.id) === String(entryId))
-  if (entry === undefined) return { ok: false, error: `未找到插件行 ${entryId}` }
-  try {
-    await entry.update({ disabled: !enabled })
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-  try {
-    await persistPatchDisabled(ctx, String(entryId), !enabled)
-  } catch (error) {
-    diag('patch persist failed: ' + (error instanceof Error ? error.message : String(error)))
-  }
-  return { ok: true, enabled }
-}
-
 export function apply(ctx) {
   diag('apply called; get=' + String(typeof ctx.get) + '; webServer=' + String(typeof ctx.get('webServer')))
   const webServer = ctx.get('webServer')
@@ -240,49 +165,6 @@ export function apply(ctx) {
         if (sessionId === '') return sendJson(res, 400, { ok: false, error: '缺少 sessionId' })
         try {
           const result = await deleteSession(ctx, sessionId)
-          return sendJson(res, result.ok ? 200 : 400, result)
-        } catch (error) {
-          return sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
-        }
-      }
-    }),
-    webServer.register({
-      kind: 'exact',
-      path: '/dsh-session-delete/plugins',
-      handler: async (req, res) => {
-        try {
-          const modules = ctx.get('clientModules')
-          const loader = ctx.get('loader')
-          const entries = modules === undefined ? [] : modules.graph().entries
-          // User-installed plugins: everything outside the official scope.
-          const plugins = (Array.isArray(entries) ? entries : [])
-            .filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.id === 'string' && !String(entry.id).startsWith('@deepseek-ai/'))
-            .map((entry) => {
-              const row = loader === undefined ? undefined : findEntryByPackage(loader, String(entry.id))
-              return {
-                id: entry.id,
-                rev: entry.rev,
-                url: entry.url,
-                entryId: row === undefined ? null : String(row.id),
-                enabled: row === undefined ? true : row.options.disabled !== true
-              }
-            })
-          return sendJson(res, 200, { ok: true, plugins })
-        } catch (error) {
-          return sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
-        }
-      }
-    }),
-    webServer.register({
-      kind: 'exact',
-      path: '/dsh-session-delete/plugins/toggle',
-      handler: async (req, res) => {
-        const body = await readBody(req)
-        const entryId = body !== null && typeof body === 'object' && typeof body.entryId === 'string' ? body.entryId : ''
-        const enabled = body !== null && typeof body === 'object' && body.enabled === true
-        if (entryId === '') return sendJson(res, 400, { ok: false, error: '缺少 entryId' })
-        try {
-          const result = await togglePlugin(ctx, entryId, enabled)
           return sendJson(res, result.ok ? 200 : 400, result)
         } catch (error) {
           return sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })

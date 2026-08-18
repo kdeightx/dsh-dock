@@ -1,0 +1,4 @@
+# dsh-system-shutdown: 侧边栏「关闭 DSH」按钮。
+- insert:
+    - id: system-shutdown
+      name: 'dsh-system-shutdown'

@@ -4,12 +4,14 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 
 ## 插件清单
 
-| 插件 | 功能 | 安装 |
-|---|---|---|
-| [dsh-session-delete](./dsh-session-delete/) | 侧栏会话 ⋯ 菜单注入「删除会话」：红字菜单项、DSH 风格确认框、彻底删除任意会话（同名候选选择、模式/目录/时间信息展示、运行中会话保护） | `dsh plugin --profile web add dsh-session-delete` |
-| [dsh-plugin-manager](./dsh-plugin-manager/) | 插件管理器：设置页「自定义插件」tab，列出所有已安装自定义插件，支持**热插拔开关**（禁用/启用即时生效、状态持久化，管理器自身防禁用） | `dsh plugin --profile web add dsh-plugin-manager` |
-| [dsh-system-restart](./dsh-system-restart/) | 侧边栏底部「重启 DSH」按钮（与设置按钮同款排版）：确认后自动拉起新进程完成热重启，会话数据不丢失 | `dsh plugin --profile web add dsh-system-restart` |
-| [dsh-system-shutdown](./dsh-system-shutdown/) | 侧边栏底部「关闭 DSH」按钮：确认后优雅退出 DSH Web 进程 | `dsh plugin --profile web add dsh-system-shutdown` |
+> **状态说明**：`dsh-plugin-manager` 目前为 **测试版**——热插拔开关的完整闭环（禁用后 host 端点真正下线、启用后恢复、开关状态跨重启持久化）尚未全部验收，可能存在行为不完整。其余插件已实测可用。
+
+| 插件 | 状态 | 功能 | 安装 |
+|---|---|---|---|
+| [dsh-session-delete](./dsh-session-delete/) | ✅ 已实测 | 侧栏会话 ⋯ 菜单注入「删除会话」：红字菜单项、DSH 风格确认框、彻底删除任意会话（同名候选选择、模式/目录/时间信息展示、运行中会话保护） | `dsh plugin --profile web add dsh-session-delete` |
+| [dsh-plugin-manager](./dsh-plugin-manager/) | 🧪 **测试版** | 插件管理器：设置页「自定义插件」tab，列出所有已安装自定义插件，支持**热插拔开关**（禁用/启用即时生效、状态持久化，管理器自身防禁用） | `dsh plugin --profile web add dsh-plugin-manager` |
+| [dsh-system-restart](./dsh-system-restart/) | ✅ 已实测 | 侧边栏底部「重启 DSH」按钮（与设置按钮同款排版）：确认后自动拉起新进程完成热重启，会话数据不丢失 | `dsh plugin --profile web add dsh-system-restart` |
+| [dsh-system-shutdown](./dsh-system-shutdown/) | ⚠️ 待实测 | 侧边栏底部「关闭 DSH」按钮：确认后优雅退出 DSH Web 进程 | `dsh plugin --profile web add dsh-system-shutdown` |
 
 ## 安装任意插件
 

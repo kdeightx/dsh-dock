@@ -1,0 +1,5 @@
+# dsh-session-delete: 向侧栏会话 ⋯ 菜单注入「删除会话」。
+# 纯增量行，不替换任何官方服务。
+- insert:
+    - id: session-delete-menu
+      name: 'dsh-session-delete'

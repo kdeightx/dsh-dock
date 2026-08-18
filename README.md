@@ -1,21 +1,43 @@
-# dsh-session-delete
+# dsh-dock
 
-在 DeepSeek Harness Web 侧栏的会话 ⋯ 菜单中，向「归档会话」项下方注入「删除会话」：
+DeepSeek Harness 插件集（monorepo）——为 DSH Web 添加各种扩展功能。
 
-- 红色菜单项 + 垃圾桶图标，跟随菜单语言（中文/英文）
-- 点击后先按标题解析唯一会话，再弹确认框（不可恢复警告）
-- 确认后物理删除会话日志目录、清理 workspace 归属记录，并刷新页面
-- 正在运行的会话拒绝删除
+## 插件清单
 
-## 安装
+| 插件 | 功能 | 安装 |
+|---|---|---|
+| [dsh-session-delete](./dsh-session-delete/) | 在侧栏会话 ⋯ 菜单注入「删除会话」：红字菜单项、DSH 风格确认框、彻底删除任意会话（含同名候选选择、模式/目录/时间信息展示） | `dsh plugin --profile web add dsh-session-delete` |
+
+## 安装任意插件
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-session-delete
+cd <插件目录>          # 例如 cd dsh-session-delete
+dsh plugin --profile web add .
 ```
 
-重启 DSH Web 并硬刷新浏览器。
+或从仓库根直接安装：
 
-## 端点
+```bash
+dsh plugin --profile web add dsh-session-delete
+```
 
-- `POST /dsh-session-delete/resolve` `{ title }` → 唯一匹配的 sessionId
-- `POST /dsh-session-delete/delete` `{ sessionId }` → 永久删除
+安装后**重启 DSH Web 并硬刷新浏览器**。
+
+## 开发新插件
+
+在仓库根新建子目录，保持结构：
+
+```
+dsh-<name>/
+├── package.json          # dsh.bundle.patch + dsh.client 声明
+├── cordis.patch.yml      # 组合配置行
+└── lib/
+    ├── index.js          # Host 面（node ESM）
+    └── client.js         # 浏览器面（__ModuleLoader__ bundle）
+```
+
+详见 [dsh-session-delete](./dsh-session-delete/README.md) 作为完整示例。
+
+## 许可证
+
+MIT

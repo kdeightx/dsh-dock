@@ -2,6 +2,8 @@
 
 DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩展功能。
 
+> 📖 想自己写 DSH 插件？看 **[DSH 插件编写指南](./docs/dsh-plugin-guide.md)**——基于本工具集实战经验整理：工程结构、Host/Client 双面契约、Slot 注入、DOM 注入、热插拔原理、调试与踩坑记录。
+
 ## 插件清单
 
 > **状态说明**：`dsh-plugin-manager` 目前为 **测试版**——热插拔开关的完整闭环（禁用后 host 端点真正下线、启用后恢复、开关状态跨重启持久化）尚未全部验收，可能存在行为不完整。其余插件已实测可用。

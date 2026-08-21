@@ -1,0 +1,33 @@
+{
+  "name": "dsh-sidebar-cost",
+  "version": "0.1.0",
+  "description": "侧边栏中部「成本卡片」区：余额 / 波峰低峰 / 切换倒计时 / 本会话费用 / 下一条预测；隐藏 dsh-cost-crystal 右上角浮层。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "license": "Apache-2.0",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  }
+}

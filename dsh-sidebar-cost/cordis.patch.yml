@@ -1,0 +1,6 @@
+# dsh-sidebar-cost: 侧边栏底部「成本卡片」区（设置按钮旁）。
+# 数据复用 dsh-cost-crystal 的 /ds-balance 与 /ds-activity 路由；
+# host 仅注入隐藏浮层 CSS。
+- insert:
+    - id: sidebar-cost
+      name: 'dsh-sidebar-cost'

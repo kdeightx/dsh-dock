@@ -1,6 +1,5 @@
 // 冒烟测试：模拟浏览器全局 + DSH ModuleLoader 加载 lib/client.js。
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 
 // 浏览器全局（bundle 顶层初始化需要）
 const makeEl = () => ({
@@ -63,11 +62,12 @@ fn(window)
 if (!captured) { console.error('FAIL: no registration captured'); process.exit(1) }
 if (captured.id !== 'dsh-whiteboard') { console.error('FAIL: bad id', captured.id); process.exit(1) }
 
-// 用 DSH 自带的真实 react 全家桶（loader 在浏览器里提供的正是它们）
-const dshRequire = createRequire('@deepseek-ai/dsh/package.json')
+// react 系列用 mock（主 bundle 的 apply/inject 不执行 React 逻辑）；
+// 真实渲染与 Excalidraw 库的验证由 cdp-lazy.mjs（真实 Chrome）覆盖。
 const exportsObj = captured.factory((spec) => {
-  if (spec === 'react/jsx-runtime') return dshRequire('react/jsx-runtime')
-  if (spec === 'react' || spec === 'react-dom' || spec === 'react-dom/client') return dshRequire('react')
+  if (spec === 'react' || spec === 'react-dom' || spec === 'react/jsx-runtime' || spec === 'react-dom/client') {
+    return { __mockReact: true }
+  }
   throw new Error('unexpected external require: ' + spec)
 })
 

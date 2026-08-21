@@ -14,7 +14,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add link:dsh-sidebar-cost
+dsh plugin --profile web add dsh-sidebar-cost
 # 然后重启 dsh web，浏览器硬刷新
 ```
 

@@ -1,4 +1,4 @@
-# dsh-whiteboard — DSH 全屏白板（Excalidraw 接入）
+# dsh-whiteboard — DSH 右侧窗口白板（Excalidraw 接入）
 
 会话头部右上角「白板」按钮 → 右侧**滑出独立白板窗口**（默认占窗口 2/3，滑入动画），与对话区并排；窗口与对话区之间的**分隔线可左右拖动**（split pane），宽度记忆在 localStorage。画布引擎为 [Excalidraw](https://github.com/excalidraw/excalidraw)（MIT），插件只做接入：入口、窗口、持久化。
 
@@ -20,12 +20,14 @@ dsh plugin --profile web add /path/to/dsh-dock/dsh-whiteboard   # 或 cd 到插�
 # 重启 DSH Web + 硬刷新浏览器（⌘⇧R）
 ```
 
-## 架构（双 bundle）
+## 架构
+
+**双 bundle 设计**：
 
 - `lib/client.js`（~16KB）：入口/按钮/窗口/持久化逻辑，页面加载即执行
 - `lib/vendor/excalidraw-lib.js`（~6.3MB）：Excalidraw 全量，`<script>` 延迟加载 + 空闲预加载；React 由主 bundle 经 `window.__WB_REACT` 注入，保证同一实例
 
-## 架构（原说明）
+**目录结构**：
 
 ```
 dsh-whiteboard/
@@ -68,7 +70,6 @@ Client 改动：`node build.mjs` 后 DSH 的 client-hmr 会自动重载（硬刷
 
 ## 已知限制
 
-- 主 bundle 仅 ~16KB；Excalidraw 拆为独立 `excalidraw-lib.js`（~6.3MB）**延迟加载**——页面空闲时预加载，首次打开白板时才真正执行（本地服务器毫秒级），不影响页面加载速度
 - 画布数据含图片元素时只存引用（excalidraw 的 files 未持久化），粘贴图片建议另存
 - 语言包已裁剪为 en + zh-CN，切换其他语言无效果
 

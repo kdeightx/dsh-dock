@@ -111,17 +111,20 @@ window.__ModuleLoader__.load({
       padding: '0'
     }
 
-    let primitivesCache = null
-    const primitives = () => {
-      if (primitivesCache === null) {
-        try { primitivesCache = require('@deepseek-ai/dsh-client-ui-primitives') } catch { primitivesCache = false }
-      }
-      return primitivesCache
-    }
-    const ICON = () => {
-      const p = primitives()
-      return p !== false && typeof p.IconStopFill16 === 'function' ? p.IconStopFill16 : null
-    }
+    // 图标来源:lucide「Power」(电源键/开机符号)。
+    // lucide 图标组件,ISC License,https://lucide.dev (lucide-static v1.33.0)。
+    const PowerIcon = ({ size = 16 }) => react.createElement('svg', {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      style: { display: 'inline-block', flex: 'none' }
+    }, react.createElement('path', { d: 'M12 2v10' }), react.createElement('path', { d: 'M18.4 6.6a9 9 0 1 1-12.77.04' }))
+    const ICON = () => PowerIcon
 
     function ShutdownButton({ wide }) {
       const [hovered, setHovered] = react.useState(false)
@@ -173,7 +176,8 @@ window.__ModuleLoader__.load({
       const slots = ctx.get('slots')
       if (slots !== undefined) {
         disposers.push(slots.inject('sidebar.footer.action', () => slots.register(
-          { name: 'sidebar.footer.action', id: 'dsh-shutdown', order: 10 },
+          // order 升序渲染:restart(order 10)在前 → shutdown(20)在后,避免同 order 竞态导致排序颠倒
+          { name: 'sidebar.footer.action', id: 'dsh-shutdown', order: 20 },
           (props) => react.createElement(ShutdownButton, { wide: Boolean(props.wide) })
         )))
       }

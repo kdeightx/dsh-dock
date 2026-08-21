@@ -111,20 +111,42 @@ window.__ModuleLoader__.load({
       padding: '0'
     }
 
-    let primitivesCache = null
-    const primitives = () => {
-      if (primitivesCache === null) {
-        try { primitivesCache = require('@deepseek-ai/dsh-client-ui-primitives') } catch { primitivesCache = false }
-      }
-      return primitivesCache
-    }
-    const ICON = () => {
-      const p = primitives()
-      return p !== false && typeof p.IconRefreshOutline16 === 'function' ? p.IconRefreshOutline16 : null
-    }
+    // 图标来源:lucide「Activity」(心电图,在线/活跃语义)。
+    // lucide 图标组件,ISC License,https://lucide.dev (lucide-static v1.33.0)。
+    // online=true:绿色 + 呼吸动画(后台可达);online=false:红色 + 静止半透明(离线/重启中)。
+    const ActivityIcon = ({ size = 16, online = true }) => react.createElement('svg', {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      className: 'dsc-online-icon' + (online ? '' : ' dsc-online-icon--off'),
+      style: { display: 'inline-block', flex: 'none', color: online ? '#34d399' : 'var(--dsw-alias-state-error,#f87171)' }
+    }, react.createElement('path', { d: 'M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2' }))
+    const ICON = () => ActivityIcon
 
     function RestartButton({ wide }) {
       const [hovered, setHovered] = react.useState(false)
+      const [online, setOnline] = react.useState(true)
+      // 实时探测后台连接状态:3s 一次轻量请求,失败即离线(重启中)。
+      react.useEffect(() => {
+        let alive = true
+        const ping = () => {
+          fetch('/', { cache: 'no-store' })
+            .then((r) => {
+              if (!alive) return
+              try { r.body && r.body.cancel() } catch (e) { /* best effort */ }
+              setOnline(r.ok)
+            })
+            .catch(() => { if (alive) setOnline(false) })
+        }
+        ping()
+        const t = setInterval(ping, 3000)
+        return () => { alive = false; clearInterval(t) }
+      }, [])
       const click = () => {
         showModal({
           title: '重启 DSH',
@@ -146,12 +168,12 @@ window.__ModuleLoader__.load({
       return react.createElement('button', {
         type: 'button',
         style: hovered ? { ...style, background: 'var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))' } : style,
-        title: '重启 DSH',
+        title: online ? 'DSH 运行中 · 点击重启' : 'DSH 离线(重启中) · 点击重启',
         onMouseEnter: () => setHovered(true),
         onMouseLeave: () => setHovered(false),
         onClick: click
       }, [
-        IconComponent !== null && react.createElement(IconComponent, { size: wide ? 16 : 18 }),
+        IconComponent !== null && react.createElement(IconComponent, { size: wide ? 16 : 18, online }),
         wide && react.createElement('span', null, '重启 DSH')
       ])
     }
@@ -159,10 +181,14 @@ window.__ModuleLoader__.load({
     // Layout tweak shared with dsh-system-shutdown: the sidebar foot renders
     // footerActions ABOVE settingsArea; flip the column so the order reads
     // 设置 → 重启 → 关闭 top-down. Hashed class; degrades to default position.
+    // 附带注入在线心电图呼吸动画 CSS(.dsc-online-icon)。
     const injectLayoutCss = () => {
       const styleEl = document.createElement('style')
       styleEl.setAttribute('data-dsh-system-actions', 'true')
-      styleEl.textContent = '.hHd-Xa_footArea{flex-direction:column-reverse!important}.hHd-Xa_footerActions{flex-wrap:wrap!important}'
+      styleEl.textContent = '.hHd-Xa_footArea{flex-direction:column-reverse!important}.hHd-Xa_footerActions{flex-wrap:wrap!important}' +
+        '@keyframes dscOnlinePulse{0%,100%{opacity:1}50%{opacity:.35}}' +
+        '.dsc-online-icon{animation:dscOnlinePulse 2s ease-in-out infinite}' +
+        '.dsc-online-icon--off{animation:none;opacity:.55}'
       document.head.appendChild(styleEl)
       return () => styleEl.remove()
     }

@@ -14,6 +14,22 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 | [dsh-plugin-manager](./dsh-plugin-manager/) | 🧪 **测试版** | 插件管理器：设置页「自定义插件」tab，列出所有已安装自定义插件，支持**热插拔开关**（禁用/启用即时生效、状态持久化，管理器自身防禁用） | `dsh plugin --profile web add dsh-plugin-manager` |
 | [dsh-system-restart](./dsh-system-restart/) | ✅ 已实测 | 侧边栏底部「重启 DSH」按钮（与设置按钮同款排版）：确认后自动拉起新进程完成热重启，会话数据不丢失 | `dsh plugin --profile web add dsh-system-restart` |
 | [dsh-system-shutdown](./dsh-system-shutdown/) | ✅ 已实测 | 侧边栏底部「关闭 DSH」按钮：确认后优雅退出 DSH Web 进程 | `dsh plugin --profile web add dsh-system-shutdown` |
+| [dsh-sidebar-cost](./dsh-sidebar-cost/) | ✅ 已实测 | 侧边栏成本卡片：余额/波峰低峰/切换倒计时/近 24h 话费，隐藏 cost-crystal 悬浮卡 | `dsh plugin --profile web add dsh-sidebar-cost` |
+| [dsh-safe-mode](./dsh-safe-mode/) | ✅ 已实测 | **安全模式面板**：配合 dsh-safe 脚本，插件被改坏导致 dsh 打不开时，以安全模式进入并在页面顶部横幅救援（解除隔离/移除） | `dsh plugin --profile web add dsh-safe-mode` |
+
+## 安全模式（dsh-safe）
+
+> 🛟 插件被 AI 改坏、dsh 打不开时，**不需要第二个 Agent 救场**。
+
+```bash
+dsh-safe start      # 体检所有插件 → 自动隔离损坏者 → 以安全模式启动
+dsh-safe status     # 体检报告 + 隔离清单
+dsh-safe heal --all # 修好后解除隔离
+```
+
+- `dsh-safe` 是独立脚本（非插件），dsh 崩了也能跑；安装：`cp dsh-safe/dsh-safe.mjs ~/.local/bin/dsh-safe`
+- 原理：dsh 的 patch 覆盖层 `- id: <行id>` + `disabled: true` 的条目 Loader 连模块都不 import，
+  坏插件被跳过即可正常启动；详见 [INSTALL.md 第 7 节](./INSTALL.md)。
 
 ## 安装任意插件
 

@@ -1,0 +1,12 @@
+# dsh-safe-mode: 安全模式面板 bundle。
+#
+# 本插件是 dsh-dock 里「不该被 AI 修改」的插件:
+# 当其它插件被改坏导致 dsh 无法启动时,dsh-safe 脚本(dsh-dock/dsh-safe)
+# 会把坏插件隔离(写入 profile 的 safe-mode.overlay.yml),然后以
+# `dsh web --patch <overlay>` 启动。本插件随之正常加载,通过 tapIndex
+# 注入页面横幅,提供「解除隔离并重启 / 移除此插件」入口。
+#
+# 请勿修改本插件的代码 —— 安全模式本身若损坏,就真的没有退路了。
+- insert:
+    - id: dsh-safe-mode
+      name: 'dsh-safe-mode'

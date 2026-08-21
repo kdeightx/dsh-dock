@@ -1,0 +1,24 @@
+{
+  "name": "dsh-safe-mode",
+  "version": "0.1.0",
+  "description": "安全模式面板：插件被改坏导致 dsh 启动失败时，配合 dsh-safe 脚本以安全模式启动，并在页面顶部注入横幅（解除隔离并重启 / 移除此插件）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "license": "Apache-2.0",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

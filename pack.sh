@@ -28,6 +28,8 @@ PLUGINS=(
   dsh-plugin-manager
   dsh-session-delete
   dsh-sidebar-cost
+  dsh-safe-mode
+  dsh-safe
 )
 
 ARGS=(INSTALL.md install.sh pack.sh)

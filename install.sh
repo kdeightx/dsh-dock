@@ -16,6 +16,8 @@
 #   4. dsh-plugin-manager      (设置页插件管理器)
 #   5. dsh-session-delete      (会话 ⋯ 菜单「删除会话」)
 #   6. dsh-sidebar-cost        (侧边栏成本卡片,依赖 dsh-cost-crystal)
+#   7. dsh-safe-mode           (安全模式面板:插件被改坏时横幅救援入口)
+#   8. dsh-safe                (安全模式脚本:体检/自动隔离/安全启动,装到 ~/.local/bin)
 #
 # 依赖: 目标设备需已安装 dsh CLI 且初始化过对应 profile。
 # 重复运行幂等(pnpm 会跳过已安装版本)。
@@ -48,7 +50,7 @@ echo "==> 目标 profile: $PROFILE"
 echo "==> 插件源目录: $HERE"
 
 # 1. npm 插件(必须先装,提供数据路由)
-echo "==> [1/6] dsh-cost-crystal (npm)"
+echo "==> [1/8] dsh-cost-crystal (npm)"
 dsh plugin --profile "$PROFILE" add dsh-cost-crystal
 
 # 2. 本地 link 插件
@@ -58,6 +60,7 @@ INSTALL_LIST=(
   "dsh-plugin-manager:设置页插件管理器"
   "dsh-session-delete:会话删除菜单"
   "dsh-sidebar-cost:侧边栏成本卡片(需 dsh-cost-crystal)"
+  "dsh-safe-mode:安全模式横幅(插件被改坏时的救援入口)"
 )
 
 STEP=2
@@ -65,7 +68,7 @@ for entry in "${INSTALL_LIST[@]}"; do
   pkg="${entry%%:*}"
   desc="${entry#*:}"
   if [ -d "$HERE/$pkg" ]; then
-    echo "==> [$STEP/6] $pkg (link) — $desc"
+    echo "==> [$STEP/8] $pkg (link) — $desc"
     dsh plugin --profile "$PROFILE" add "link:$HERE/$pkg"
   else
     echo "!! 跳过 $pkg(目录不存在):$HERE/$pkg"
@@ -73,10 +76,22 @@ for entry in "${INSTALL_LIST[@]}"; do
   STEP=$((STEP + 1))
 done
 
+# 3. dsh-safe 安全模式脚本(独立脚本,不是插件;dsh 崩了也能跑)
+echo "==> [8/8] dsh-safe (安全模式脚本)"
+if [ -f "$HERE/dsh-safe/dsh-safe.mjs" ]; then
+  mkdir -p "$HOME/.local/bin"
+  cp "$HERE/dsh-safe/dsh-safe.mjs" "$HOME/.local/bin/dsh-safe"
+  chmod +x "$HOME/.local/bin/dsh-safe"
+  echo "    ✔ 已安装到 $HOME/.local/bin/dsh-safe"
+  echo "      (若 PATH 不含 ~/.local/bin,请用绝对路径调用;验证: dsh-safe status)"
+else
+  echo "!! 跳过 dsh-safe(文件不存在):$HERE/dsh-safe/dsh-safe.mjs"
+fi
+
 echo
 echo "──────────────────────────────────────────────────────────"
 echo "✅ 全部安装完成!最后一步:"
-echo "   1. 启动 dsh $PROFILE"
+echo "   1. 启动 dsh $PROFILE(建议用: dsh-safe start,自带体检+安全模式)"
 echo "   2. 点击侧边栏底部「重启 DSH」按钮(或手动重启)"
 echo "   3. 浏览器硬刷新(Cmd+Shift+R / Ctrl+Shift+R)"
 echo "──────────────────────────────────────────────────────────"

@@ -20,7 +20,7 @@ ls ~/.dsh/profiles/web/package.json
 - 若 profile 目录不存在：先运行一次 `dsh web`（或 `dsh --profile web`）完成初始化。
 - 当前工作目录应包含以下插件目录（请用 `ls` 确认）：
   `dsh-system-restart`、`dsh-system-shutdown`、`dsh-plugin-manager`、
-  `dsh-session-delete`、`dsh-sidebar-cost`
+  `dsh-session-delete`、`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-safe`
 
 ---
 
@@ -50,19 +50,37 @@ dsh plugin --profile web add "link:<ABS>/dsh-system-shutdown"
 dsh plugin --profile web add "link:<ABS>/dsh-plugin-manager"
 dsh plugin --profile web add "link:<ABS>/dsh-session-delete"
 dsh plugin --profile web add "link:<ABS>/dsh-sidebar-cost"
+dsh plugin --profile web add "link:<ABS>/dsh-safe-mode"
 ```
 
 每个插件安装后，`dsh plugin` 会自动把它追加进
 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`（声明了
 `dsh.bundle` 的包会自动挂载，无需手动改 `cordis.patch.yml`）。
 
-验证：安装完 5 个后，`package.json` 的 `dsh.profile.bundles` 应包含（顺序无关）：
+验证：安装完 6 个后，`package.json` 的 `dsh.profile.bundles` 应包含（顺序无关）：
 `dsh-system-restart`、`dsh-system-shutdown`、`dsh-plugin-manager`、
-`dsh-session-delete`、`dsh-sidebar-cost`、`dsh-cost-crystal`。
+`dsh-session-delete`、`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-cost-crystal`。
 
 ---
 
-## 3. 重启并验证
+## 3. 安装安全模式脚本（dsh-safe）
+
+`dsh-safe` 是**独立脚本**（不是插件），dsh 崩了也能跑，用于体检插件、
+自动隔离坏插件并以安全模式启动。建议装到 PATH：
+
+```bash
+mkdir -p "$HOME/.local/bin"
+cp "<ABS>/dsh-safe/dsh-safe.mjs" "$HOME/.local/bin/dsh-safe"
+chmod +x "$HOME/.local/bin/dsh-safe"
+# 确认可运行（应打印体检报告）
+dsh-safe status
+```
+
+若 `~/.local/bin` 不在 PATH，直接用绝对路径调用即可。
+
+---
+
+## 4. 重启并验证
 
 插件是 bundle 层，**必须重启 dsh web 进程**才能加载：
 
@@ -81,10 +99,11 @@ dsh plugin --profile web add "link:<ABS>/dsh-sidebar-cost"
 | 会话列表 ⋯ 菜单 | 出现「删除会话」 |
 | 设置页 | 出现「自定义插件」管理器 |
 | 右上角 | **不再出现** dsh-cost-crystal 的悬浮余额卡片 |
+| 页面顶部 | **不出现**安全模式横幅（有横幅 = 有插件被隔离，见第 7 节） |
 
 ---
 
-## 4. 常见问题（遇到时排查）
+## 5. 常见问题（遇到时排查）
 
 - **`dsh plugin ... add` 报 pnpm EPERM/权限错误**：确认当前用户对
   `~/.dsh/profiles/web` 有写权限；不要用 sudo 运行 dsh。
@@ -99,7 +118,7 @@ dsh plugin --profile web add "link:<ABS>/dsh-sidebar-cost"
 
 ---
 
-## 5. 卸载
+## 6. 卸载
 
 ```bash
 dsh plugin --profile web remove dsh-cost-crystal
@@ -108,6 +127,57 @@ dsh plugin --profile web remove dsh-system-shutdown
 dsh plugin --profile web remove dsh-plugin-manager
 dsh plugin --profile web remove dsh-session-delete
 dsh plugin --profile web remove dsh-sidebar-cost
+dsh plugin --profile web remove dsh-safe-mode
+rm -f "$HOME/.local/bin/dsh-safe"
 ```
 
 之后同样需要重启 dsh web。
+
+---
+
+## 7. 安全模式：插件被改坏、dsh 打不开时自救
+
+> 适用场景：AI 或人修改插件源码时出错（最常见：`lib/index.js` 语法错误），
+> 导致 dsh 启动即失败、Web 界面完全进不去。此时**不需要第二个 Agent 救场**，
+> 用 `dsh-safe` 即可。
+
+### 原理（一句话）
+
+dsh 的 patch 覆盖层里 `- id: <行id>` + `disabled: true` 的条目，
+Loader **连模块都不会 import**。`dsh-safe` 把坏插件的行写进
+`~/.dsh/profiles/web/safe-mode.overlay.yml`，再以
+`dsh web --patch <overlay>` 启动 —— 坏插件被跳过，dsh 正常进入。
+
+### 日常启动（推荐替代裸 `dsh web`）
+
+```bash
+dsh-safe start
+```
+
+它会：① 体检所有插件 → ② 自动隔离损坏者（写入 overlay）→
+③ 启动 dsh（安全模式）→ ④ 若启动仍失败，自动解析错误、隔离失败条目后重试一次。
+
+### 其他命令
+
+```bash
+dsh-safe status            # 体检报告 + 当前隔离清单
+dsh-safe heal <pkg|id>     # 修好源码后解除隔离（--all 全部解除；仍损坏会拒绝，除非 --force）
+dsh-safe quarantine <pkg>  # 手动隔离一个插件（--force 跳过健康检查）
+dsh-safe remove <pkg>      # 彻底移除插件（等价 dsh plugin remove）
+```
+
+### 安全模式里怎么修
+
+1. `dsh-safe start` 进入安全模式后，页面顶部出现**安全模式横幅**：
+   列出被隔离的插件与原因，按钮「解除隔离并重启」「移除」。
+2. 让 AI 修复插件源码（改的是 `dsh-dock/` 下对应插件目录，link 安装即时生效）。
+3. 点横幅「解除隔离并重启」—— 先做语法体检，仍坏会拒绝并显示原因；
+   修好后重启即恢复正常模式（`dsh-safe start` 下次启动也会自动清除遗留隔离）。
+
+### 注意
+
+- `dsh-safe-mode` 插件**不要改**：安全模式横幅全靠它，它坏了就没有界面了。
+- overlay 文件空时内容是 `[]`（不是删除）—— 进程若以 `--patch <它>` 启动，
+  重启按钮会沿用该参数，文件必须存在。
+- 若坏的是 `cordis.patch.yml` / `package.json` 本身（合成期损坏），overlay 救不了，
+  `dsh-safe start` 会明确提示：修文件，或 `dsh plugin --profile web remove <pkg>`。

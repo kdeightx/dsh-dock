@@ -10,9 +10,11 @@
 //   2. cordis.patch.yml 可解析(js-yaml),并提取其中的行 id;
 //   3. lib/index.js、lib/client.js 通过 node --check。
 // 发现坏的 → 写入 <profile>/safe-mode.overlay.yml(patch 覆盖层,格式:
-//   - id: xxx / disabled: true)→ 以 `dsh web --patch <overlay>` 启动。
-//   disabled 的条目 Loader 连模块都不会 import,坏插件不影响启动 —— 这就是
+//   - id: xxx / disabled: true)→ 以 `dsh web --patch <overlay> --port <SAFE_PORT>`
+//   启动。disabled 的条目 Loader 连模块都不会 import,坏插件不影响启动 —— 这就是
 //   安全模式。dsh-safe-mode 插件随后在页面顶部显示横幅,提供修复入口。
+//   端口即模式指示灯: 正常模式 3080,安全模式 9527(dsh web 自带 --port 参数,
+//   重启按钮的 argv 延续保证安全模式重启后仍在 9527;解除隔离后回 3080)。
 // 若启动仍失败(如 import 了缺失依赖),脚本从错误日志解析失败的 entry id,
 // 自动隔离后重试一次。
 //
@@ -25,6 +27,7 @@
 //   dsh-safe remove <pkg>         从 profile 移除插件(dsh plugin remove)
 //   dsh-safe --profile <name> …   指定 profile(默认 web,或用 DSH_SAFE_PROFILE)
 //
+// 端口: 正常 3080 / 安全模式 9527(可用 DSH_SAFE_PORT 覆盖安全模式端口)。
 // 依赖: 仅 node 内置模块 + dsh 自带的 js-yaml(从 dsh 安装目录解析)。
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn, spawnSync } from 'node:child_process'
@@ -35,6 +38,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BOOT_LOG = '/tmp/dsh-safe-boot.log'
+const NORMAL_PORT = 3080
+const SAFE_PORT = Number(process.env.DSH_SAFE_PORT) || 9527
 let PROFILE = process.env.DSH_SAFE_PROFILE || 'web'
 let FORCE = false
 
@@ -53,10 +58,22 @@ function statePath() {
 
 // ── dsh 定位 ─────────────────────────────────────────────────────────────────
 function findDsh() {
+  // wrapper 场景: DSH_REAL_BIN 指向真 dsh(wrapper 自身也以此启动真 dsh),
+  // 避免 which dsh 找到 wrapper 自己。
+  if (process.env.DSH_REAL_BIN && existsSync(process.env.DSH_REAL_BIN)) return process.env.DSH_REAL_BIN
   if (process.env.DSH_BIN && existsSync(process.env.DSH_BIN)) return process.env.DSH_BIN
   const r = spawnSync('which', ['dsh'], { encoding: 'utf8' })
-  if (r.status === 0 && r.stdout.trim()) return r.stdout.trim()
-  for (const p of [join(homedir(), '.npm-global/bin/dsh'), '/usr/local/bin/dsh', join(homedir(), '.local/bin/dsh')]) {
+  if (r.status === 0 && r.stdout.trim()) {
+    const p = r.stdout.trim()
+    // which 可能找到 wrapper(它不是 @deepseek-ai/dsh 的 bin,解析不出包根),
+    // 此时改找同目录的 dsh.real(透明包装器安装时真 dsh 的改名)。
+    if (dshPackageRoot(p) === null) {
+      const real = join(dirname(p), 'dsh.real')
+      if (existsSync(real)) return real
+    }
+    return p
+  }
+  for (const p of [join(homedir(), '.npm-global/bin/dsh.real'), join(homedir(), '.npm-global/bin/dsh'), '/usr/local/bin/dsh', join(homedir(), '.local/bin/dsh')]) {
     if (existsSync(p)) return p
   }
   return null
@@ -334,9 +351,19 @@ function scanAll(patches) {
 }
 
 // ── 启动 ─────────────────────────────────────────────────────────────────────
+/** 安全模式 = overlay 里有隔离条目(disabled 行)。端口即模式指示灯。 */
+function isSafeMode() {
+  return readOverlayIds().length > 0
+}
+
+/** 本次启动将要使用的端口: 安全模式走 DSH_SAFE_PORT(默认 9527),正常走 3080。 */
+function targetPort() {
+  return isSafeMode() ? SAFE_PORT : NORMAL_PORT
+}
+
 async function isDshRunning() {
   try {
-    const r = await fetch('http://127.0.0.1:3080/', { signal: AbortSignal.timeout(1200) })
+    const r = await fetch(`http://127.0.0.1:${targetPort()}/`, { signal: AbortSignal.timeout(1200) })
     return r.ok || r.status === 404 // 有服务在答就视为已在运行
   } catch {
     return false
@@ -351,6 +378,13 @@ function runWeb(onExit) {
   }
   const args = ['web']
   if (existsSync(overlayPath())) args.push('--patch', overlayPath())
+  const safe = isSafeMode()
+  if (safe) {
+    args.push('--port', String(SAFE_PORT))
+    console.log(`⚠ 安全模式: 端口 ${SAFE_PORT} — http://127.0.0.1:${SAFE_PORT}`)
+  } else {
+    console.log(`✔ 正常模式: 端口 ${NORMAL_PORT} — http://127.0.0.1:${NORMAL_PORT}`)
+  }
   console.log(`==> 启动: ${bin} ${args.join(' ')}`)
   const child = spawn(bin, args, {
     stdio: ['inherit', 'inherit', 'pipe'],
@@ -391,7 +425,7 @@ async function cmdStart() {
     process.exit(1)
   }
   if (!FORCE && (await isDshRunning())) {
-    console.error('✗ dsh 似乎已在运行 (http://127.0.0.1:3080)。')
+    console.error(`✗ dsh 似乎已在运行 (http://127.0.0.1:${targetPort()})。`)
     console.error('  已运行的实例无法被本脚本接管;如需安全模式: 先关闭 dsh,再运行本命令;')
     console.error('  或用 --force 强行再启动(端口会被占,不建议)。')
     process.exit(1)
@@ -415,6 +449,7 @@ async function cmdStart() {
     const ids = ensureQuarantine(quarantinable)
     console.log(`\n⚠ 安全模式: 已隔离 ${ids.length} 个损坏条目 → ${overlayPath()}`)
     for (const b of quarantinable) console.log(`   - ${b.id} (${b.pkg}): ${b.reason}`)
+    console.log(`  本次将以安全模式启动在端口 ${SAFE_PORT}(http://127.0.0.1:${SAFE_PORT})`)
   } else {
     ensureQuarantine([])
   }
@@ -534,6 +569,11 @@ function cmdHeal(targets) {
   writeOverlay(remaining)
   writeState(state.quarantined.filter((q) => !wanted.includes(q.id)))
   console.log(`✔ 已解除隔离: ${wanted.join(', ')}`)
+  if (remaining.length > 0) {
+    console.log(`  还有隔离项(${remaining.join(', ')}),重启后仍在安全模式(端口 ${SAFE_PORT})`)
+  } else {
+    console.log(`  隔离已清空,重启后回到正常模式(端口 ${NORMAL_PORT})`)
+  }
   console.log('  重启 dsh 生效(推荐: dsh-safe start,会自动完成剩余体检)')
 }
 
@@ -610,9 +650,13 @@ const HELP = `dsh-safe — DSH 安全模式入口
   -h, --help            显示本帮助
 
 示例:
-  dsh-safe start                     # 日常: 体检后启动
+  dsh-safe start                     # 日常: 体检后启动(正常 3080 / 安全模式 9527)
   dsh-safe status                    # 看谁坏了
-  dsh-safe heal --all                # 修好后全部解除并重启
+  dsh-safe heal --all                # 修好后全部解除并重启(回 3080)
+
+端口:
+  正常模式 http://127.0.0.1:3080 ; 安全模式 http://127.0.0.1:${SAFE_PORT}
+  安全模式端口可用环境变量 DSH_SAFE_PORT 覆盖。
 `
 
 async function main() {
@@ -655,4 +699,34 @@ async function main() {
   }
 }
 
-await main()
+// 仅当本文件作为主入口执行时才跑 CLI(被 dsh-wrapper import 时不执行)。
+const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isMain) {
+  await main()
+}
+
+// ── 供 dsh-wrapper(透明包装器)复用的核心函数 ───────────────────────────────
+export function setProfile(name) {
+  PROFILE = name
+}
+export {
+  dshHome,
+  profileDir,
+  overlayPath,
+  statePath,
+  findDsh,
+  dshPackageRoot,
+  loadJsYaml,
+  loadPatches,
+  resolveBundleDir,
+  scanBundle,
+  readOverlayIds,
+  writeOverlay,
+  ensureQuarantine,
+  scanAll,
+  isSafeMode,
+  targetPort,
+  parseFailureIds,
+  NORMAL_PORT,
+  SAFE_PORT
+}

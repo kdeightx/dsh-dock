@@ -17,14 +17,19 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 | [dsh-sidebar-cost](./dsh-sidebar-cost/) | ✅ 已实测 | 侧边栏成本卡片：余额/波峰低峰/切换倒计时/近 24h 话费，隐藏 cost-crystal 悬浮卡 | `dsh plugin --profile web add dsh-sidebar-cost` |
 | [dsh-safe-mode](./dsh-safe-mode/) | ✅ 已实测 | **安全模式面板**：配合 dsh-safe 脚本，插件被改坏导致 dsh 打不开时，以安全模式进入并在页面顶部横幅救援（解除隔离/移除） | `dsh plugin --profile web add dsh-safe-mode` |
 
-## 安全模式（dsh-safe）
+## 安全模式（dsh-safe + 透明包装器）
 
 > 🛟 插件被 AI 改坏、dsh 打不开时，**不需要第二个 Agent 救场**。
+> **端口即模式指示灯**：正常 3080 / 安全模式 9527，插件健康自动回 3080。
+
+**自动进入**（推荐）：安装一次透明包装器，任何启动方式（首次/手动/重启按钮）都会
+插件坏 → 自动隔离 → 9527 安全模式 + 右下角 🛟 便签（问题插件/原因/📋复制诊断/解除隔离并重启）；
+插件健康 → 3080 正常模式。装在 `~/.local/bin/dsh`（**升级免疫**：npm 更新 dsh 不影响）。
 
 ```bash
-dsh-safe start      # 体检所有插件 → 自动隔离损坏者 → 以安全模式启动
-dsh-safe status     # 体检报告 + 隔离清单
-dsh-safe heal --all # 修好后解除隔离
+bash dsh-safe/install-wrapper.sh   # 安装（自动检查 PATH 顺序）
+dsh-safe status                    # 体检报告 + 隔离清单
+dsh-safe heal --all                # 修好后解除隔离
 ```
 
 - `dsh-safe` 是独立脚本（非插件），dsh 崩了也能跑；安装：`cp dsh-safe/dsh-safe.mjs ~/.local/bin/dsh-safe`

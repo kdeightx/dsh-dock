@@ -138,46 +138,56 @@ rm -f "$HOME/.local/bin/dsh-safe"
 ## 7. 安全模式：插件被改坏、dsh 打不开时自救
 
 > 适用场景：AI 或人修改插件源码时出错（最常见：`lib/index.js` 语法错误），
-> 导致 dsh 启动即失败、Web 界面完全进不去。此时**不需要第二个 Agent 救场**，
-> 用 `dsh-safe` 即可。
+> 导致 dsh 启动即失败、Web 界面完全进不去。此时**不需要第二个 Agent 救场**。
 
 ### 原理（一句话）
 
 dsh 的 patch 覆盖层里 `- id: <行id>` + `disabled: true` 的条目，
-Loader **连模块都不会 import**。`dsh-safe` 把坏插件的行写进
+Loader **连模块都不会 import**。安全模式把坏插件的行写进
 `~/.dsh/profiles/web/safe-mode.overlay.yml`，再以
-`dsh web --patch <overlay>` 启动 —— 坏插件被跳过，dsh 正常进入。
+`dsh web --patch <overlay> --port 9527` 启动 —— 坏插件被跳过，dsh 正常进入。
 
-### 日常启动（推荐替代裸 `dsh web`）
+**端口即模式指示灯**：正常模式 `3080`，安全模式 `9527`；插件修好解除隔离后自动回 `3080`。
+
+### 自动进入安全模式（推荐：透明包装器）
+
+安装一次，之后**任何启动方式**（首次启动 / 手动重启 / 点重启按钮）都会自动：
+插件有问题 → 隔离 → 9527 安全模式；插件健康 → 3080 正常模式。
 
 ```bash
-dsh-safe start
+bash dsh-safe/install-wrapper.sh        # 安装到 ~/.local/bin/dsh(升级免疫)
+which dsh                               # 应显示 ~/.local/bin/dsh
 ```
 
-它会：① 体检所有插件 → ② 自动隔离损坏者（写入 overlay）→
-③ 启动 dsh（安全模式）→ ④ 若启动仍失败，自动解析错误、隔离失败条目后重试一次。
+- **升级免疫**：包装器在用户目录（npm 不碰），写死调用真 dsh；
+  npm 升级 `@deepseek-ai/dsh` 不影响自动降级能力。
+- 需要 PATH 里 `~/.local/bin` 排在 npm-global 之前（脚本会自动检查）。
+- 卸载：`bash dsh-safe/install-wrapper.sh uninstall`。
 
-### 其他命令
+### 手动入口（dsh-safe CLI，兜底）
 
 ```bash
-dsh-safe status            # 体检报告 + 当前隔离清单
-dsh-safe heal <pkg|id>     # 修好源码后解除隔离（--all 全部解除；仍损坏会拒绝，除非 --force）
-dsh-safe quarantine <pkg>  # 手动隔离一个插件（--force 跳过健康检查）
-dsh-safe remove <pkg>      # 彻底移除插件（等价 dsh plugin remove）
+dsh-safe start            # 体检所有插件 → 自动隔离损坏者 → 启动(正常3080/安全9527)
+dsh-safe status           # 体检报告 + 当前隔离清单
+dsh-safe heal <pkg|id>    # 修好源码后解除隔离（--all 全部解除；仍损坏会拒绝，除非 --force）
+dsh-safe quarantine <pkg> # 手动隔离一个插件（--force 跳过健康检查）
+dsh-safe remove <pkg>     # 彻底移除插件（等价 dsh plugin remove）
 ```
 
 ### 安全模式里怎么修
 
-1. `dsh-safe start` 进入安全模式后，页面顶部出现**安全模式横幅**：
-   列出被隔离的插件与原因，按钮「解除隔离并重启」「移除」。
+1. 进入安全模式（9527）后，**右下角出现 🛟 便签**（贴纸式，一直悬挂）：
+   显示当前模式、问题插件、原因；按钮 **📋 复制诊断**（复制完整报告到剪贴板）、
+   **解除隔离并重启**；✕ 关闭后可点右下角小圆钮重新打开。
 2. 让 AI 修复插件源码（改的是 `dsh-dock/` 下对应插件目录，link 安装即时生效）。
-3. 点横幅「解除隔离并重启」—— 先做语法体检，仍坏会拒绝并显示原因；
-   修好后重启即恢复正常模式（`dsh-safe start` 下次启动也会自动清除遗留隔离）。
+3. 点便签「解除隔离并重启」—— 先做语法体检，仍坏会拒绝并显示原因；
+   修好后重启即回正常模式（3080）。
 
 ### 注意
 
-- `dsh-safe-mode` 插件**不要改**：安全模式横幅全靠它，它坏了就没有界面了。
+- `dsh-safe-mode` 插件**不要改**：安全模式便签全靠它，它坏了就没有界面了。
 - overlay 文件空时内容是 `[]`（不是删除）—— 进程若以 `--patch <它>` 启动，
   重启按钮会沿用该参数，文件必须存在。
 - 若坏的是 `cordis.patch.yml` / `package.json` 本身（合成期损坏），overlay 救不了，
   `dsh-safe start` 会明确提示：修文件，或 `dsh plugin --profile web remove <pkg>`。
+- 自动降级判定依赖 dsh 的错误信息格式；dsh 大版本升级后建议模拟一次插件故障验证。

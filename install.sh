@@ -76,14 +76,17 @@ for entry in "${INSTALL_LIST[@]}"; do
   STEP=$((STEP + 1))
 done
 
-# 3. dsh-safe 安全模式脚本(独立脚本,不是插件;dsh 崩了也能跑)
-echo "==> [8/8] dsh-safe (安全模式脚本)"
+# 3. dsh-safe 安全模式(独立脚本 + 透明包装器;dsh 崩了也能跑)
+echo "==> [8/8] dsh-safe (安全模式: 脚本 + 透明包装器)"
 if [ -f "$HERE/dsh-safe/dsh-safe.mjs" ]; then
   mkdir -p "$HOME/.local/bin"
   cp "$HERE/dsh-safe/dsh-safe.mjs" "$HOME/.local/bin/dsh-safe"
   chmod +x "$HOME/.local/bin/dsh-safe"
-  echo "    ✔ 已安装到 $HOME/.local/bin/dsh-safe"
-  echo "      (若 PATH 不含 ~/.local/bin,请用绝对路径调用;验证: dsh-safe status)"
+  echo "    ✔ 脚本已安装到 $HOME/.local/bin/dsh-safe"
+  if [ -f "$HERE/dsh-safe/install-wrapper.sh" ]; then
+    echo "    == 安装透明包装器(插件坏时自动进入安全模式9527,升级免疫)…"
+    bash "$HERE/dsh-safe/install-wrapper.sh" || echo "    !! wrapper 安装失败/跳过(PATH 顺序等,可稍后手动: bash $HERE/dsh-safe/install-wrapper.sh)"
+  fi
 else
   echo "!! 跳过 dsh-safe(文件不存在):$HERE/dsh-safe/dsh-safe.mjs"
 fi

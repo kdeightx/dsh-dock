@@ -1,18 +1,27 @@
-// dsh-safe-mode host half — 安全模式面板。
+// dsh-safe-mode host half — 安全模式便签面板。
 //
 // 背景: 当某个插件的 host 代码(lib/index.js)被改坏时,dsh 的 Loader 会
 // 整体回滚启动(任一条目失败 = 整棵树失败),用户连 Web 界面都进不去。
-// dsh-safe 脚本(dsh-dock/dsh-safe)会在启动前体检所有插件,把坏插件写入
+// dsh-safe 脚本 / dsh 透明包装器(dsh-wrapper)会在启动失败时把坏插件写入
 // ~/.dsh/profiles/<profile>/safe-mode.overlay.yml(格式为 patch 覆盖层,
-// `- id: xxx / disabled: true`),然后以 `dsh web --patch <overlay>` 启动:
-// 被隔离的条目 disabled=true,Loader 连它的模块都不会 import,坏插件不影响启动。
+// `- id: xxx / disabled: true`),然后以 `dsh web --patch <overlay> --port 9527`
+// 启动安全模式: 被隔离的条目 disabled=true,Loader 连它的模块都不会 import,
+// 坏插件不影响启动。
 //
-// 本插件负责安全模式下的「界面」:
-//   * tapIndex 注入横幅 —— 页面顶部提示被隔离的插件,提供
-//     「解除隔离并重启 / 移除此插件」入口(不依赖 slot 系统,最可靠);
-//   * GET  /dsh-safe/status   查询隔离状态;
-//   * POST /dsh-safe/heal     {all:true} 或 {id} —— 解除隔离(先做语法体检)并重启;
-//   * POST /dsh-safe/remove   {pkg} —— 从 profile 移除该插件并重启。
+// 本插件负责安全模式下的「界面」—— 右下角便签(类似贴纸,一直悬挂,
+// 除非手动关闭;关闭后可从小圆钮重新打开):
+//   * 告知当前模式(安全模式)与端口;
+//   * 列出问题插件与原因(来自 /dsh-safe/status);
+//   * 「📋 复制诊断」按钮 —— 复制一份完整诊断报告;
+//   * 「解除隔离并重启」(先做语法体检,仍坏则拒绝)与「移除」入口;
+// 路由:
+//   GET  /dsh-safe/status   查询隔离状态;
+//   POST /dsh-safe/heal     {all:true} 或 {id} —— 解除隔离(先做语法体检)并重启;
+//   POST /dsh-safe/remove   {pkg} —— 从 profile 移除该插件并重启。
+//
+// 自愈: 启动时序竞争(webserver 行可能重建,导致本插件注册在旧实例上)会
+// 让路由/注入偶尔失效 —— apply 内自检通过但实际请求 404。因此这里每 2 秒
+// 重新获取 webServer 实例并补齐注册(幂等,已存在则跳过)。
 //
 // ⚠️ 本插件是全仓库「最不该被 AI 修改」的文件之一: 它自身若损坏,
 // 安全模式就没有界面了。代码刻意保持简单、防御式(所有路由 try/catch)。
@@ -22,6 +31,7 @@ import { join } from 'node:path'
 
 const NAME = 'dsh-safe-mode'
 const DIAG = '/tmp/dsh-safe-mode.log'
+const HEAL_MS = 2000 // 自愈间隔
 
 function log(...parts) {
   try {
@@ -195,75 +205,162 @@ function computeStatus(p) {
   return { ok: true, profile: p.profileName, overlayExists: existsSync(p.overlay), quarantined }
 }
 
-// ── 横幅注入(tapIndex,不依赖 slot/客户端模块,最可靠) ──────────────────────
-const BANNER_CSS = `
-<style data-dsh-safe-mode="banner">
-#dsh-safe-banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483000;max-width:min(680px,calc(100vw - 24px));box-sizing:border-box;font:13px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color:#f5f5f4;background:rgba(28,25,23,.97);border:1px solid rgba(245,158,11,.6);border-radius:10px;padding:10px 14px;box-shadow:0 8px 28px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:8px}
-#dsh-safe-banner .dsh-safe-title{display:flex;align-items:center;gap:8px;font-weight:600;color:#fbbf24}
-#dsh-safe-banner .dsh-safe-body{opacity:.95;word-break:break-all}
-#dsh-safe-banner .dsh-safe-actions{display:flex;gap:8px;flex-wrap:wrap}
-#dsh-safe-banner button{cursor:pointer;border-radius:6px;padding:4px 10px;font-size:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff}
-#dsh-safe-banner button:hover{background:rgba(255,255,255,.16)}
-#dsh-safe-banner .dsh-safe-heal{background:#f59e0b;border-color:#f59e0b;color:#1c1917;font-weight:600}
-#dsh-safe-banner .dsh-safe-heal:hover{background:#fbbf24}
-#dsh-safe-banner .dsh-safe-remove{color:#fca5a5}
-#dsh-safe-banner .dsh-safe-err{color:#fca5a5;font-size:12px;min-height:1em}
-#dsh-safe-banner .dsh-safe-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,.5);font-size:14px;padding:0 2px}
-#dsh-safe-banner .dsh-safe-close:hover{color:#fff;background:none}
+// ── 便签注入(tapIndex,不依赖 slot/客户端模块) ─────────────────────────────
+// 右下角便签: 一直悬挂,除非用户关闭(关闭后保留一个小圆钮可重新打开)。
+const NOTE_CSS = `
+<style data-dsh-safe-mode="note">
+#dsh-safe-note{position:fixed;right:16px;bottom:16px;z-index:2147483000;width:320px;box-sizing:border-box;font:13px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color:#f5f5f4;background:rgba(35,30,20,.97);border:1px solid rgba(245,158,11,.55);border-top:3px solid #f59e0b;border-radius:10px;padding:12px 14px;box-shadow:0 10px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:8px}
+#dsh-safe-note .dsn-top{display:flex;align-items:center;gap:8px}
+#dsh-safe-note .dsn-badge{font-weight:700;color:#fbbf24}
+#dsh-safe-note .dsn-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,.5);font-size:14px;cursor:pointer;padding:0 2px}
+#dsh-safe-note .dsn-close:hover{color:#fff}
+#dsh-safe-note .dsn-mode{opacity:.85}
+#dsh-safe-note .dsn-label{opacity:.7;margin:2px 0 4px}
+#dsh-safe-note .dsn-item{background:rgba(255,255,255,.06);border-left:2px solid #f87171;border-radius:4px;padding:5px 8px;margin-bottom:5px;word-break:break-all}
+#dsh-safe-note .dsn-item-name{font-weight:600;color:#fca5a5}
+#dsh-safe-note .dsn-item-reason{opacity:.85;font-size:12px;white-space:pre-wrap}
+#dsh-safe-note .dsn-actions{display:flex;gap:8px;flex-wrap:wrap}
+#dsh-safe-note button{cursor:pointer;border-radius:6px;padding:5px 10px;font-size:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff}
+#dsh-safe-note button:hover{background:rgba(255,255,255,.16)}
+#dsh-safe-note .dsn-heal{background:#f59e0b;border-color:#f59e0b;color:#1c1917;font-weight:600}
+#dsh-safe-note .dsn-heal:hover{background:#fbbf24}
+#dsh-safe-note .dsn-err{color:#fca5a5;font-size:12px;min-height:1em}
+#dsh-safe-reopen{position:fixed;right:16px;bottom:16px;z-index:2147483000;width:38px;height:38px;border-radius:50%;border:1px solid rgba(245,158,11,.6);background:rgba(35,30,20,.95);color:#fbbf24;font-size:17px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#dsh-safe-reopen:hover{background:rgba(60,50,30,.98)}
 </style>
 `
 
 // 注意: 注入脚本里不能出现 '</script>' 字样,也不使用模板字符串,
 // 避免与宿主模板串冲突(全部字符串拼接)。
-const BANNER_SCRIPT = `
-<script data-dsh-safe-mode="banner">
+const NOTE_SCRIPT = `
+<script data-dsh-safe-mode="note">
 (function () {
   try {
-    var KEY = 'dsh-safe-banner-collapsed';
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(KEY)) return;
+    var HIDE_KEY = 'dsh-safe-note-hidden';
     function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-    function boot() {
-      fetch('/dsh-safe/status', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
-        if (!s || !Array.isArray(s.quarantined) || s.quarantined.length === 0) return;
-        var root = document.createElement('div');
-        root.id = 'dsh-safe-banner';
-        var items = s.quarantined.map(function (q) { return esc(q.pkg) + (q.reason ? '：' + esc(q.reason) : ''); });
-        var html = '';
-        html += '<div class="dsh-safe-title"><span>⚠️</span><span>安全模式</span><span style="flex:1"></span><button class="dsh-safe-close" title="收起本次会话">✕</button></div>';
-        html += '<div class="dsh-safe-body">以下插件因加载失败已被自动隔离：<br><b>' + items.join('<br>') + '</b><br><span style="opacity:.75">修好源码后点「解除隔离并重启」；不想修就直接移除。</span></div>';
-        html += '<div class="dsh-safe-actions">';
-        html += '<button class="dsh-safe-heal">' + (s.quarantined.length > 1 ? '全部解除隔离并重启' : '解除隔离并重启') + '</button>';
-        html += s.quarantined.map(function (q) { return '<button class="dsh-safe-remove" data-pkg="' + esc(q.pkg) + '">移除 ' + esc(q.pkg) + '</button>'; }).join('');
-        html += '</div><div class="dsh-safe-err"></div>';
-        root.innerHTML = html;
-        var err = root.querySelector('.dsh-safe-err');
-        function act(url, body, label) {
-          err.textContent = label + '…';
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-            .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
-            .then(function (t) {
-              if (t.r.ok) { err.textContent = '正在重启 DSH…'; setTimeout(function () { location.reload(); }, 1500); }
-              else { err.textContent = '失败: ' + ((t.j && t.j.error) || t.r.status); }
-            })
-            .catch(function (e) { err.textContent = '请求失败: ' + e; });
-        }
-        root.querySelector('.dsh-safe-heal').addEventListener('click', function () { act('/dsh-safe/heal', { all: true }, '正在解除隔离'); });
-        Array.prototype.forEach.call(root.querySelectorAll('.dsh-safe-remove'), function (b) {
-          b.addEventListener('click', function () { act('/dsh-safe/remove', { pkg: b.getAttribute('data-pkg') }, '正在移除'); });
-        });
-        root.querySelector('.dsh-safe-close').addEventListener('click', function () { try { sessionStorage.setItem(KEY, '1'); } catch (e) {} root.remove(); });
-        document.body.appendChild(root);
-      }).catch(function () {});
+    function fmtTime(ts) { try { return new Date(ts).toLocaleString('zh-CN', { hour12: false }); } catch (e) { return String(ts); } }
+    function copyText(text) {
+      function fallback() {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (e) {}
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(fallback);
+      else fallback();
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-    else boot();
-  } catch (e) { console.error('[dsh-safe-mode] banner failed', e); }
+    function buildReport(s) {
+      var lines = [];
+      lines.push('DSH 安全模式诊断报告');
+      lines.push('════════════════════════');
+      lines.push('时间: ' + fmtTime(Date.now()));
+      lines.push('模式: 安全模式' + (s.profile ? ' (profile: ' + s.profile + ')' : ''));
+      lines.push('问题插件: ' + s.quarantined.length + ' 个');
+      s.quarantined.forEach(function (q, i) {
+        lines.push('  ' + (i + 1) + '. ' + q.pkg + ' (行 id: ' + q.id + ')');
+        if (q.reason) lines.push('     原因: ' + q.reason);
+      });
+      lines.push('');
+      lines.push('修复建议:');
+      lines.push('  1. 修复插件源码后,点便签上的「解除隔离并重启」');
+      lines.push('  2. 或运行: dsh-safe heal --all');
+      lines.push('  3. 或移除插件: dsh plugin --profile ' + (s.profile || 'web') + ' remove <包名>');
+      return lines.join('\\n');
+    }
+    function renderNote(s) {
+      var root = document.createElement('div');
+      root.id = 'dsh-safe-note';
+      var items = '';
+      s.quarantined.forEach(function (q) {
+        items += '<div class="dsn-item"><div class="dsn-item-name">' + esc(q.pkg) + '</div>' +
+          (q.reason ? '<div class="dsn-item-reason">' + esc(q.reason) + '</div>' : '') + '</div>';
+      });
+      root.innerHTML =
+        '<div class="dsn-top"><span class="dsn-badge">🛟 安全模式</span><button class="dsn-close" title="关闭便签(可点右下角小圆钮重新打开)">✕</button></div>' +
+        '<div class="dsn-mode">当前模式: 安全模式</div>' +
+        '<div class="dsn-plugins"><div class="dsn-label">问题插件 (' + s.quarantined.length + '):</div>' + items + '</div>' +
+        '<div class="dsn-actions">' +
+        '<button class="dsn-copy">📋 复制诊断</button>' +
+        '<button class="dsn-heal">解除隔离并重启</button>' +
+        '</div><div class="dsn-err"></div>';
+      document.body.appendChild(root);
+      var err = root.querySelector('.dsn-err');
+      root.querySelector('.dsn-copy').addEventListener('click', function () {
+        copyText(buildReport(s));
+        err.textContent = '已复制到剪贴板 ✓';
+      });
+      root.querySelector('.dsn-heal').addEventListener('click', function () {
+        err.textContent = '正在解除隔离并重启…';
+        fetch('/dsh-safe/heal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true }) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { r: r, j: j }; }); })
+          .then(function (t) {
+            if (t.r.ok) { err.textContent = '已解除,正在重启…'; setTimeout(function () { location.reload(); }, 1500); }
+            else { err.textContent = '失败: ' + ((t.j && t.j.error) || t.r.status); }
+          })
+          .catch(function (e) { err.textContent = '请求失败: ' + e; });
+      });
+      root.querySelector('.dsn-close').addEventListener('click', function () {
+        try { sessionStorage.setItem(HIDE_KEY, '1'); } catch (e) {}
+        root.remove();
+        showReopen();
+      });
+    }
+    function showReopen() {
+      if (document.getElementById('dsh-safe-reopen')) return;
+      var btn = document.createElement('button');
+      btn.id = 'dsh-safe-reopen';
+      btn.title = '安全模式信息';
+      btn.textContent = '🛟';
+      btn.addEventListener('click', function () {
+        try { sessionStorage.removeItem(HIDE_KEY); } catch (e) {}
+        btn.remove();
+        fetchStatus();
+      });
+      document.body.appendChild(btn);
+    }
+    // 等待 dsh 界面完全渲染(侧边栏根元素出现 + #root 有内容)再渲染便签;
+    // 最长等 15 秒兜底(即使类名模式失效,便签最多晚 15 秒,不会丢失)
+    function waitForUi(cb) {
+      var tries = 0;
+      var check = function () {
+        tries++;
+        var sidebar = document.querySelector('[class*="Xa_root"]');
+        var root = document.getElementById('root');
+        var uiReady = sidebar && root && root.children.length > 0;
+        if (uiReady || tries > 50) { setTimeout(cb, 1500); }
+        else { setTimeout(check, 300); }
+      };
+      check();
+    }
+    // 轮询取状态: 无隔离/请求失败 → 3 秒后重试(等自愈补齐路由);有隔离 → 等 UI 就绪再渲染
+    function fetchStatus() {
+      fetch('/dsh-safe/status', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (s) {
+          if (!s || !Array.isArray(s.quarantined) || s.quarantined.length === 0) {
+            setTimeout(fetchStatus, 3000);
+            return;
+          }
+          waitForUi(function () {
+            var hidden = false;
+            try { hidden = sessionStorage.getItem(HIDE_KEY) === '1'; } catch (e) {}
+            if (hidden) showReopen(); else renderNote(s);
+          });
+        })
+        .catch(function () { setTimeout(fetchStatus, 3000); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fetchStatus);
+    else fetchStatus();
+  } catch (e) { console.error('[dsh-safe-mode] note failed', e); }
 })();
 </script>
 `
 
 function injectBanner(html) {
-  const chunk = BANNER_CSS + BANNER_SCRIPT
+  const chunk = NOTE_CSS + NOTE_SCRIPT
   return html.includes('</head>') ? html.replace('</head>', chunk + '</head>') : chunk + html
 }
 
@@ -272,112 +369,116 @@ export function apply(ctx) {
   const webServer = ctx.get('webServer')
   if (webServer === undefined) return
   const p = paths(ctx)
-  const disposers = []
 
-  const register = (path, handler) => {
-    try {
-      const dispose = webServer.register({ kind: 'exact', path, handler })
-      disposers.push(dispose)
-    } catch (e) {
-      log('register failed: ' + path + ' ' + String(e))
-    }
-  }
-
-  register('/dsh-safe/status', async (req, res) => {
-    try {
-      if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
-      sendJson(res, 200, computeStatus(p))
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: String(e) })
-    }
-  })
-
-  register('/dsh-safe/heal', async (req, res) => {
-    try {
-      if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
-      const body = await readBody(req)
-      const state = readState(p.state)
-      const ids = readOverlayIds(p.overlay)
-      const targets = body.all === true ? ids : [body.id].filter(Boolean)
-      if (targets.length === 0) return sendJson(res, 400, { ok: false, error: '没有需要解除的隔离项' })
-
-      // 逐个做语法体检: 仍然损坏的拒绝解除,避免一重启又崩
-      for (const id of targets) {
-        const entry = (state.quarantined || []).find((q) => q.id === id)
-        if (!entry?.pkg || entry.pkg === id) continue // 未知来源,放行
-        const check = checkPluginSyntax(entry.pkg, p.profileDir)
-        if (!check.ok) return sendJson(res, 422, { ok: false, id, error: `${entry.pkg} 仍然损坏: ${check.err}` })
-      }
-
-      const remaining = ids.filter((id) => !targets.includes(id))
-      writeOverlay(p.overlay, remaining)
-      writeState(p.state, (state.quarantined || []).filter((q) => !targets.includes(q.id)))
-      log('healed: ' + targets.join(', '))
-      sendJson(res, 200, { ok: true, healed: targets })
-      restartSoon()
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: String(e) })
-    }
-  })
-
-  register('/dsh-safe/remove', async (req, res) => {
-    try {
-      if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
-      const body = await readBody(req)
-      const pkg = typeof body.pkg === 'string' ? body.pkg.trim() : ''
-      if (!/^[A-Za-z0-9@/._-]+$/.test(pkg) || pkg.length > 100) {
-        return sendJson(res, 400, { ok: false, error: '非法包名' })
-      }
-      // 先回答浏览器,再跑 dsh plugin remove(pnpm 可能耗时数秒),完成后重启
-      sendJson(res, 200, { ok: true, removing: pkg })
-      log('removing: ' + pkg)
-      const child = spawn('dsh', ['plugin', '--profile', p.profileName, 'remove', pkg], {
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: process.env
-      })
-      let out = ''
-      child.stdout?.on('data', (d) => { out += d })
-      child.stderr?.on('data', (d) => { out += d })
-      child.on('exit', (code) => {
-        log(`remove exit=${code} out=${out.slice(0, 500)}`)
-        // 顺带清掉隔离记录(若它在隔离清单里)
-        try {
-          const ids = readOverlayIds(p.overlay)
-          const state = readState(p.state)
-          const idx = (state.quarantined || []).findIndex((q) => q.pkg === pkg)
-          if (idx >= 0) {
-            const q = state.quarantined[idx]
-            writeOverlay(p.overlay, ids.filter((id) => id !== q.id))
-            writeState(p.state, state.quarantined.filter((_, i) => i !== idx))
-          }
-        } catch (e) {
-          log('cleanup failed: ' + String(e))
-        }
-        restartSoon()
-      })
-      child.on('error', (e) => log('remove spawn error: ' + e.message))
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: String(e) })
-    }
-  })
-
-  try {
-    const disposeTap = webServer.tapIndex(injectBanner)
-    disposers.push(disposeTap)
-  } catch (e) {
-    log('tapIndex failed: ' + String(e))
-  }
-
-  ctx.effect(() => {
-    for (const d of disposers) {
+  const handlers = {
+    '/dsh-safe/status': async (req, res) => {
       try {
-        d()
-      } catch {
-        /* 忽略单个清理失败 */
+        if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
+        sendJson(res, 200, computeStatus(p))
+      } catch (e) {
+        sendJson(res, 500, { ok: false, error: String(e) })
+      }
+    },
+    '/dsh-safe/heal': async (req, res) => {
+      try {
+        if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
+        const body = await readBody(req)
+        const state = readState(p.state)
+        const ids = readOverlayIds(p.overlay)
+        const targets = body.all === true ? ids : [body.id].filter(Boolean)
+        if (targets.length === 0) return sendJson(res, 400, { ok: false, error: '没有需要解除的隔离项' })
+
+        // 逐个做语法体检: 仍然损坏的拒绝解除,避免一重启又崩
+        for (const id of targets) {
+          const entry = (state.quarantined || []).find((q) => q.id === id)
+          if (!entry?.pkg || entry.pkg === id) continue // 未知来源,放行
+          const check = checkPluginSyntax(entry.pkg, p.profileDir)
+          if (!check.ok) return sendJson(res, 422, { ok: false, id, error: `${entry.pkg} 仍然损坏: ${check.err}` })
+        }
+
+        const remaining = ids.filter((id) => !targets.includes(id))
+        writeOverlay(p.overlay, remaining)
+        writeState(p.state, (state.quarantined || []).filter((q) => !targets.includes(q.id)))
+        log('healed: ' + targets.join(', '))
+        sendJson(res, 200, { ok: true, healed: targets })
+        restartSoon()
+      } catch (e) {
+        sendJson(res, 500, { ok: false, error: String(e) })
+      }
+    },
+    '/dsh-safe/remove': async (req, res) => {
+      try {
+        if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'method not allowed' })
+        const body = await readBody(req)
+        const pkg = typeof body.pkg === 'string' ? body.pkg.trim() : ''
+        if (!/^[A-Za-z0-9@/._-]+$/.test(pkg) || pkg.length > 100) {
+          return sendJson(res, 400, { ok: false, error: '非法包名' })
+        }
+        // 先回答浏览器,再跑 dsh plugin remove(pnpm 可能耗时数秒),完成后重启
+        sendJson(res, 200, { ok: true, removing: pkg })
+        log('removing: ' + pkg)
+        const child = spawn('dsh', ['plugin', '--profile', p.profileName, 'remove', pkg], {
+          detached: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: process.env
+        })
+        let out = ''
+        child.stdout?.on('data', (d) => { out += d })
+        child.stderr?.on('data', (d) => { out += d })
+        child.on('exit', (code) => {
+          log(`remove exit=${code} out=${out.slice(0, 500)}`)
+          // 顺带清掉隔离记录(若它在隔离清单里)
+          try {
+            const ids = readOverlayIds(p.overlay)
+            const state = readState(p.state)
+            const idx = (state.quarantined || []).findIndex((q) => q.pkg === pkg)
+            if (idx >= 0) {
+              const q = state.quarantined[idx]
+              writeOverlay(p.overlay, ids.filter((id) => id !== q.id))
+              writeState(p.state, state.quarantined.filter((_, i) => i !== idx))
+            }
+          } catch (e) {
+            log('cleanup failed: ' + String(e))
+          }
+          restartSoon()
+        })
+        child.on('error', (e) => log('remove spawn error: ' + e.message))
+      } catch (e) {
+        sendJson(res, 500, { ok: false, error: String(e) })
       }
     }
-  }, NAME + ': routes')
+  }
+
+  // 幂等注册: 路由/tapIndex 缺失才补(自愈时重新拿 webServer,规避实例替换)
+  const ensureRegistered = () => {
+    const ws = ctx.get('webServer')
+    if (!ws) return
+    for (const [path, handler] of Object.entries(handlers)) {
+      try {
+        if (ws.match(path) === undefined) {
+          ws.register({ kind: 'exact', path, handler })
+          log('heal: registered ' + path)
+        }
+      } catch (e) {
+        log('heal error ' + path + ' ' + String(e))
+      }
+    }
+    try {
+      if (!ws.applyIndexTaps('<html></html>').includes('dsh-safe-note')) {
+        ws.tapIndex(injectBanner)
+        log('heal: tapIndex re-registered')
+      }
+    } catch (e) {
+      log('heal tap error ' + String(e))
+    }
+  }
+
+  ensureRegistered()
+  const timer = setInterval(ensureRegistered, HEAL_MS)
+  timer.unref?.()
+  ctx.effect(() => {
+    clearInterval(timer)
+  }, NAME + ': heal-timer')
   log('ready')
 }
 

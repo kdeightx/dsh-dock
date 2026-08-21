@@ -1,0 +1,5 @@
+# dsh-whiteboard: 侧边栏「白板」按钮 + shell.overlay 全屏白板（Excalidraw）。
+# client.js 为构建产物（build.mjs 生成），改 src/ 后重新构建。
+- insert:
+    - id: whiteboard
+      name: 'dsh-whiteboard'

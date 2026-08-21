@@ -16,6 +16,7 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 | [dsh-system-shutdown](./dsh-system-shutdown/) | ✅ 已实测 | 侧边栏底部「关闭 DSH」按钮：确认后优雅退出 DSH Web 进程 | `dsh plugin --profile web add dsh-system-shutdown` |
 | [dsh-sidebar-cost](./dsh-sidebar-cost/) | ✅ 已实测 | 侧边栏成本卡片：余额/波峰低峰/切换倒计时/近 24h 话费，隐藏 cost-crystal 悬浮卡 | `dsh plugin --profile web add dsh-sidebar-cost` |
 | [dsh-safe-mode](./dsh-safe-mode/) | ✅ 已实测 | **安全模式面板**：配合 dsh-safe 脚本，插件被改坏导致 dsh 打不开时，以安全模式进入并在页面顶部横幅救援（解除隔离/移除） | `dsh plugin --profile web add dsh-safe-mode` |
+| [dsh-whiteboard](./dsh-whiteboard/) | 🧪 新 | 右侧侧边栏白板（接入 Excalidraw）：会话头部右上角按钮展开右侧列、多画布、自动保存到 profile、PNG/SVG 导出 | `dsh plugin --profile web add dsh-whiteboard` |
 
 ## 安全模式（dsh-safe + 透明包装器）
 

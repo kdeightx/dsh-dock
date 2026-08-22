@@ -1,7 +1,7 @@
 {
   "name": "dsh-sidebar-cost",
-  "version": "0.1.0",
-  "description": "侧边栏中部「成本卡片」区：余额 / 波峰低峰 / 切换倒计时 / 本会话费用 / 下一条预测；隐藏 dsh-cost-crystal 右上角浮层。",
+  "version": "0.1.1",
+  "description": "侧边栏底部「成本卡片」区:余额/波峰低峰/切换倒计时/近24h话费/预测;数据路由完全自研(内联 Apache-2.0 引擎),零第三方依赖。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

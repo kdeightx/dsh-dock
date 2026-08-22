@@ -24,23 +24,13 @@ ls ~/.dsh/profiles/web/package.json
 
 ---
 
-## 1. 安装依赖插件（必须先装）
+## 1. 无第三方依赖（直接装即可）
 
-`dsh-sidebar-cost` 依赖 `dsh-cost-crystal` 提供的 `/ds-balance`、`/ds-activity`
-数据路由，**必须先安装**：
+**全部插件均为自研，零 npm 第三方依赖**——`dsh-sidebar-cost` 的数据路由
+（`/ds-balance`、`/ds-activity`）已内联自研（`cost-data-local.js` + `pricing-local.js`，
+Apache-2.0 署名），无需安装 `dsh-cost-crystal`（旧版依赖它，v0.1.1 起已移除）。
 
-```bash
-dsh plugin --profile web add dsh-cost-crystal
-```
-
-验证：命令应输出类似 `+ dsh-cost-crystal ^0.1.0`，且
-`~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles`
-中都出现 `dsh-cost-crystal`。
-
-> **浮层已移除**：`install.sh` 会在安装后自动执行
-> `dsh-sidebar-cost/patch-cost-crystal.sh`，去掉 cost-crystal 的右上角浮层
-> （折叠条已取代它；浮层轮询频繁 `readSession` 解压会话，是卡顿主因）。
-> 若 cost-crystal 升级（pnpm 重装覆盖）导致浮层复活，重跑 `install.sh` 或该 patch 脚本即可。
+无需提前安装任何包，直接进入第 2 节安装本地 link 插件。
 
 ---
 

@@ -9,14 +9,14 @@
 #       DSH_DOCK_REPO=<git 仓库地址> bash
 #     (脚本会自动把仓库克隆到 ~/.dsh/dock-plugins 再安装)
 #
-# 安装内容(按依赖顺序):
-#   1. dsh-cost-crystal        (npm 包,提供 /ds-balance /ds-activity 数据路由)
+# 安装内容(按依赖顺序,全部自研零第三方):
+#   1. 无 npm 依赖 —— 成本数据路由已内联,不需 dsh-cost-crystal
 #   2. dsh-system-restart      (侧边栏「重启 DSH」按钮,在线状态图标)
 #   3. dsh-system-shutdown     (侧边栏「关闭 DSH」按钮,电源图标)
 #   4. dsh-plugin-manager      (设置页插件管理器)
 #   5. dsh-session-delete      (会话 ⋯ 菜单「删除会话」)
-#   6. dsh-sidebar-cost        (侧边栏成本卡片,依赖 dsh-cost-crystal)
-#   7. dsh-safe-mode           (安全模式面板:插件被改坏时横幅救援入口)
+#   6. dsh-sidebar-cost        (侧边栏成本卡片:余额/波峰/近24h/预测,自研数据路由)
+#   7. dsh-safe-mode           (安全模式面板:插件被改坏时便签救援入口)
 #   8. dsh-safe                (安全模式脚本:体检/自动隔离/安全启动,装到 ~/.local/bin)
 #
 # 依赖: 目标设备需已安装 dsh CLI 且初始化过对应 profile。
@@ -49,12 +49,7 @@ fi
 echo "==> 目标 profile: $PROFILE"
 echo "==> 插件源目录: $HERE"
 
-# 1. npm 插件(必须先装,提供数据路由)
-echo "==> [1/8] dsh-cost-crystal (npm)"
-dsh plugin --profile "$PROFILE" add dsh-cost-crystal
-# 1b. 移除 cost-crystal 右上角浮层(其折叠条已由 dsh-sidebar-cost 取代;浮层轮询
-#     频繁 readSession 解压会话,是卡顿主因)。幂等,cost-crystal 升级后重装即自动重打。
-bash "$HERE/dsh-sidebar-cost/patch-cost-crystal.sh" "$PROFILE" || echo "    !! 浮层 patch 失败(可稍后手动: bash $HERE/dsh-sidebar-cost/patch-cost-crystal.sh $PROFILE)"
+# 1. 无 npm 依赖(成本数据路由已内联进 dsh-sidebar-cost,全部自研零第三方)
 
 # 2. 本地 link 插件
 INSTALL_LIST=(
@@ -62,8 +57,8 @@ INSTALL_LIST=(
   "dsh-system-shutdown:侧边栏「关闭 DSH」按钮"
   "dsh-plugin-manager:设置页插件管理器"
   "dsh-session-delete:会话删除菜单"
-  "dsh-sidebar-cost:侧边栏成本卡片(需 dsh-cost-crystal)"
-  "dsh-safe-mode:安全模式横幅(插件被改坏时的救援入口)"
+  "dsh-sidebar-cost:侧边栏成本卡片(余额/波峰/近24h/预测,自研数据路由)"
+  "dsh-safe-mode:安全模式便签(插件被改坏时的救援入口)"
 )
 
 STEP=2

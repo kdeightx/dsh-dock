@@ -37,8 +37,11 @@ cordis.patch.yml bundle 挂载层
 ## License 与来源声明
 
 - 本插件以 **Apache-2.0** 发布（见 `LICENSE`）。
-- 数据/helper 函数（usage 汇总、时段计算、格式化）移植自
+- **数据路由完全自研、零第三方依赖**：`lib/cost-data-local.js`（usage24h/来源/活动/预测/余额,
+  v0.1.1 起替换原 dsh-cost-crystal 提供的 `/ds-balance`、`/ds-activity` 路由）、
+  `lib/pricing-local.js`（计价引擎）均内联自
   [dsh-cost-crystal](https://github.com/xxvk/dsh-cost-crystal)（© xxvk, Apache-2.0），
-  已按其许可要求保留版权声明并注明修改（React 化、注册点改为 `sidebar.footer.action`、
-  新增展开面板）。
-- 图标来自 [lucide](https://lucide.dev)（ISC License, lucide-static v1.33.0）。
+  已按其许可要求保留版权声明并注明修改（CJS 转 ESM、仅保留数据路由、
+  去除右上角浮层注入）。
+- 折叠条 UI 与 helper（格式化等）为本插件自研;图标来自
+  [lucide](https://lucide.dev)（ISC License, lucide-static v1.33.0）。

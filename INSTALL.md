@@ -37,6 +37,11 @@ dsh plugin --profile web add dsh-cost-crystal
 `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles`
 中都出现 `dsh-cost-crystal`。
 
+> **浮层已移除**：`install.sh` 会在安装后自动执行
+> `dsh-sidebar-cost/patch-cost-crystal.sh`，去掉 cost-crystal 的右上角浮层
+> （折叠条已取代它；浮层轮询频繁 `readSession` 解压会话，是卡顿主因）。
+> 若 cost-crystal 升级（pnpm 重装覆盖）导致浮层复活，重跑 `install.sh` 或该 patch 脚本即可。
+
 ---
 
 ## 2. 安装本地 link 插件

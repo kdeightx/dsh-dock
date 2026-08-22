@@ -19,8 +19,8 @@ window.__ModuleLoader__.load({
     var exports = module.exports
     var react = require('react')
 
-    var POLL_MS = 10000 // /ds-balance
-    var ACTIVITY_MS = 2000 // /ds-activity
+    var POLL_MS = 20000 // /ds-balance(降频: 减少 readSession 解压会话)
+    var ACTIVITY_MS = 8000 // /ds-activity(降频: 原 2s;每次过期 readSession 解压,降低触发)
     var TICK_MS = 30000 // countdown / freshness refresh
 
     // ── styles ──────────────────────────────────────────────────────────────

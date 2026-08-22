@@ -52,6 +52,9 @@ echo "==> 插件源目录: $HERE"
 # 1. npm 插件(必须先装,提供数据路由)
 echo "==> [1/8] dsh-cost-crystal (npm)"
 dsh plugin --profile "$PROFILE" add dsh-cost-crystal
+# 1b. 移除 cost-crystal 右上角浮层(其折叠条已由 dsh-sidebar-cost 取代;浮层轮询
+#     频繁 readSession 解压会话,是卡顿主因)。幂等,cost-crystal 升级后重装即自动重打。
+bash "$HERE/dsh-sidebar-cost/patch-cost-crystal.sh" "$PROFILE" || echo "    !! 浮层 patch 失败(可稍后手动: bash $HERE/dsh-sidebar-cost/patch-cost-crystal.sh $PROFILE)"
 
 # 2. 本地 link 插件
 INSTALL_LIST=(

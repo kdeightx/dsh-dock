@@ -2,8 +2,8 @@
 
 > 本文档写给**目标设备上的 AI 助手**：请按本说明完成插件安装，并在每一步之后验证结果。
 > 本设备上所有**自研**插件源码已在本目录（`dsh-dock/`）下，无需联网下载插件本体；
-> 仅第三方/常用插件（见 `plugins.third-party.txt`，目前为 `dshmarket` 插件市场）
-> 需要从 npm registry 安装（需要网络）。
+> 仅第三方/常用插件（见 `plugins.third-party.txt`：技能管理器、AgentTeams、
+> 上下文仪表盘、DSH 口袋、插件市场）需要从 npm registry 安装（需要网络）。
 
 ---
 
@@ -60,18 +60,25 @@ dsh plugin --profile web add "link:<ABS>/dsh-whiteboard"
 ### 2.2 第三方/常用插件（需要网络）
 
 清单在 `plugins.third-party.txt`，每行一个 `包名;说明`（`#` 开头为注释、空行忽略），
-对每一项执行 `dsh plugin add` 即可（目前只有 dshmarket）：
+`install.sh` 会对每一项执行 `dsh plugin add`（当前为 5 项）：
 
 ```bash
+dsh plugin --profile web add @michengai/dsh-skills-manager
+dsh plugin --profile web add @nanmicoder/dsh-agent-teams
+dsh plugin --profile web add dsh-context
+dsh plugin --profile web add dsh-pocket
 dsh plugin --profile web add dshmarket
 ```
 
-安装后重启，**设置页出现「插件市场」入口**（浏览/搜索/一键安装社区插件）。
+安装后重启，**设置页出现「插件市场」入口**（浏览/搜索/一键安装社区插件），
+并出现各插件的入口（如 dsh-context 的上下文页签、AgentTeams 面板）。
 以后新增常用插件：往清单加一行，重跑 `install.sh` 自动装上。
 
 验证：安装完后，`package.json` 的 `dsh.profile.bundles` 应包含（顺序无关）：
 `dsh-system-restart`、`dsh-system-shutdown`、`dsh-session-delete`、
-`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-whiteboard`；依赖里应出现 `dshmarket`。
+`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-whiteboard`；依赖里应出现
+`@michengai/dsh-skills-manager`、`@nanmicoder/dsh-agent-teams`、`dsh-context`、
+`dsh-pocket`、`dshmarket`。
 
 ---
 
@@ -109,7 +116,7 @@ dsh-safe status
 | 成本条 | 显示余额（如 ¥xx.xx）、波峰/低峰徽章、切换倒计时 |
 | 成本条点击 ▸ | 展开详情面板（模型/速率/余额明细/预测） |
 | 会话列表 ⋯ 菜单 | 出现「删除会话」 |
-| 设置页 | 出现「插件市场」入口（dshmarket） |
+| 设置页 | 出现「插件市场」入口（dshmarket）；dsh-context 出现上下文页签、AgentTeams 面板可用 |
 | 页面顶部 | **不出现**安全模式横幅（有横幅 = 有插件被隔离，见第 7 节） |
 
 ---

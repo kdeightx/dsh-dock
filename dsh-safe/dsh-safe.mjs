@@ -70,11 +70,20 @@ function findDsh() {
     if (dshPackageRoot(p) === null) {
       const real = join(dirname(p), 'dsh.real')
       if (existsSync(real)) return real
+      // 新版「升级免疫」布局: 真 dsh 仍留在 npm bin 目录(wrapper 写死调用),
+      // 同目录没有 dsh.real,继续向下搜索真 dsh,否则 js-yaml 解析会失败。
+      const fb = findRealDsh()
+      if (fb) return fb
     }
     return p
   }
+  return findRealDsh()
+}
+
+/** 从已知位置搜索真 dsh(要求能解析出 @deepseek-ai/dsh 包根)。 */
+function findRealDsh() {
   for (const p of [join(homedir(), '.npm-global/bin/dsh.real'), join(homedir(), '.npm-global/bin/dsh'), '/usr/local/bin/dsh', join(homedir(), '.local/bin/dsh')]) {
-    if (existsSync(p)) return p
+    if (existsSync(p) && dshPackageRoot(p) !== null) return p
   }
   return null
 }

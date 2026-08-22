@@ -31,9 +31,13 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 
 | 插件 | 功能 | 安装 |
 |---|---|---|
+| [dsh-skills-manager](https://github.com/MichengAI/dsh-skills-manager)（DSH 技能管理器） | 安全管理本地 Agent skills、安全查看共享 skills（独立项目，Apache-2.0） | `dsh plugin --profile web add @michengai/dsh-skills-manager` |
+| [dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams)（AgentTeams 多代理团队） | 一句话把当前会话变成多代理团队：队长/成员/依赖任务/消息协作，Web 树状监视器 | `dsh plugin --profile web add @nanmicoder/dsh-agent-teams` |
+| [dsh-context](https://github.com/bowenliang123/dsh-context)（上下文仪表盘） | 上下文组成/演变/事件可视化 + `/context` 命令，洞察 Agent 上下文 | `dsh plugin --profile web add dsh-context` |
+| [dsh-pocket](https://github.com/shaobeichen/dsh-pocket)（DSH 口袋） | 手机扫码即同步访问电脑上的 DSH：局域网 + 公网，实时同屏 | `dsh plugin --profile web add dsh-pocket` |
 | [dshmarket](https://github.com/dsh-market/dsh-market)（DSH 社区插件市场） | 浏览/搜索/一键安装 1550+ 社区插件：分类筛选、主题、更新、备份恢复、热禁用。独立社区项目，与 DSH 官方无隶属关系 | `dsh plugin --profile web add dshmarket` |
 
-安装后重启，打开 **设置 → 插件市场**。
+以上均为当前机器实测安装的常用插件（dsh-pocket 为 GPL-2.0，其余 MIT/Apache）。安装后重启，打开 **设置 → 插件市场**（dshmarket）即可浏览/搜索社区插件。
 
 ## 安全模式（dsh-safe + 透明包装器）
 

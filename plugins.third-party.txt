@@ -8,4 +8,9 @@
 #   dsh plugin --profile <profile> add <包名>
 # 目标设备需要能访问 npm registry; 离线环境可把对应行注释掉, 自研插件不受影响。
 #
+# 以下为当前机器实测安装的常用插件(与 README.md 表格一致):
+@michengai/dsh-skills-manager;DSH 技能管理器: 安全管理本地 Agent skills, 安全查看共享 skills
+@nanmicoder/dsh-agent-teams;AgentTeams 多代理团队: 自然语言驱动 队长/成员/依赖任务/消息 协作, Web 树状监视器
+dsh-context;上下文仪表盘: 上下文组成/演变/事件 + /context 命令, 洞察 Agent 上下文
+dsh-pocket;DSH 口袋: 手机扫码即同步访问电脑上的 DSH(局域网+公网, 实时同屏)
 dshmarket;DSH 社区插件市场(非官方, 1787★): 浏览/搜索/一键安装 1550+ 社区插件, 含主题/更新/备份恢复

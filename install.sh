@@ -18,7 +18,11 @@
 #      5. dsh-safe-mode         (安全模式面板:插件被改坏时便签救援入口)
 #      6. dsh-whiteboard        (右侧全屏白板:Excalidraw 延迟加载,画布持久化)
 #   B. 第三方/常用插件(来自 npm registry, 清单 plugins.third-party.txt):
-#      dshmarket               (DSH 社区插件市场: 浏览/搜索/一键安装)
+#      @michengai/dsh-skills-manager   (DSH 技能管理器: 本地/共享 Agent skills)
+#      @nanmicoder/dsh-agent-teams     (AgentTeams: 多代理团队协作 + 树状监视器)
+#      dsh-context                     (上下文仪表盘: 组成/演变/事件 + /context 命令)
+#      dsh-pocket                      (DSH 口袋: 手机扫码同步访问电脑上的 DSH)
+#      dshmarket                       (DSH 社区插件市场: 浏览/搜索/一键安装)
 #   C. dsh-safe 安全模式脚本(独立于 dsh, 装到 ~/.local/bin)
 #
 # 依赖: 目标设备需已安装 dsh CLI 且初始化过对应 profile; 第三方插件需要网络。

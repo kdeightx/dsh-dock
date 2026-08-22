@@ -1,6 +1,6 @@
 # DSH 插件编写指南
 
-基于 dsh-dock 工具集（`dsh-session-delete` / `dsh-plugin-manager` / `dsh-system-restart` / `dsh-system-shutdown`）的实战经验整理。面向 DeepSeek Harness Web（`dsh web` profile）的静态插件开发。
+基于 dsh-dock 工具集（`dsh-session-delete` / `dsh-whiteboard` / `dsh-system-restart` / `dsh-system-shutdown`）的实战经验整理。面向 DeepSeek Harness Web（`dsh web` profile）的静态插件开发。
 
 ---
 
@@ -357,5 +357,5 @@ curl -s http://127.0.0.1:3080/ | grep 'dsh-my-plugin'   # 检查 __DSH_BOOT__ �
 本仓库即完整示例：
 
 - `dsh-session-delete/`：DOM 注入（行内菜单）+ HTTP 端点 + 会话删除（live 会话 flush/detach）
-- `dsh-plugin-manager/`：Loader 运行时热插拔 + 设置 tab + patch 持久化
+- `dsh-whiteboard/`：客户端 bundle 构建（esbuild 延迟加载 + `lib/vendor`）+ 右侧窗口 UI + 画布持久化
 - `dsh-system-restart/`、`dsh-system-shutdown/`：进程控制 + 侧边栏按钮（与设置按钮同款排版）

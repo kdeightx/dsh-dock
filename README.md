@@ -6,7 +6,7 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 
 ## 插件清单
 
-> **状态说明**：`dsh-plugin-manager` 目前为 **测试版**——热插拔开关的完整闭环（禁用后 host 端点真正下线、启用后恢复、开关状态跨重启持久化）尚未全部验收，可能存在行为不完整。其余插件已实测可用。
+> **状态说明**：标注「测试中」的插件以实际表现为准；其余已实测可用。
 
 ### ✅ 已实测可用
 
@@ -22,8 +22,18 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 
 | 插件 | 功能 | 安装 |
 |---|---|---|
-| [dsh-plugin-manager](./dsh-plugin-manager/) | 插件管理器：设置页「自定义插件」tab，列出所有已安装自定义插件，支持**热插拔开关**（禁用/启用即时生效、状态持久化，管理器自身防禁用） | `dsh plugin --profile web add dsh-plugin-manager` |
 | [dsh-whiteboard](./dsh-whiteboard/) | 右侧窗口白板（接入 Excalidraw）：会话头部右上角按钮、分割线拖拽调宽、多画布、自动保存、刷新后自动恢复 | `dsh plugin --profile web add dsh-whiteboard` |
+
+## 常用第三方插件（自动安装清单）
+
+> 第三方插件**不入库**：通过 `plugins.third-party.txt` 清单 + npm registry 安装，
+> `install.sh` 自动读取清单逐个安装。**加一行 = 新机器自动多装一个常用插件。**
+
+| 插件 | 功能 | 安装 |
+|---|---|---|
+| [dshmarket](https://github.com/dsh-market/dsh-market)（DSH 社区插件市场） | 浏览/搜索/一键安装 1550+ 社区插件：分类筛选、主题、更新、备份恢复、热禁用。独立社区项目，与 DSH 官方无隶属关系 | `dsh plugin --profile web add dshmarket` |
+
+安装后重启，打开 **设置 → 插件市场**。
 
 ## 安全模式（dsh-safe + 透明包装器）
 
@@ -44,7 +54,19 @@ dsh-safe heal --all                # 修好后解除隔离
 - 原理：dsh 的 patch 覆盖层 `- id: <行id>` + `disabled: true` 的条目 Loader 连模块都不 import，
   坏插件被跳过即可正常启动；详见 [INSTALL.md 第 7 节](./INSTALL.md)。
 
-## 安装任意插件
+## 安装
+
+**另一台新机器（推荐）**：拿到本仓库后直接跑一键脚本（自动装自研插件 +
+第三方清单插件 + dsh-safe）：
+
+```bash
+bash install.sh                                            # 默认 profile: web
+bash install.sh other-profile                              # 或指定 profile
+# 远程一条命令（自动克隆仓库到 ~/.dsh/dock-plugins 再安装）：
+curl -fsSL <install.sh 的 raw URL> | DSH_DOCK_REPO=<GitHub 仓库地址> bash
+```
+
+**单独安装任意插件**：
 
 ```bash
 cd <插件目录>          # 例如 cd dsh-session-delete

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# dsh-dock 打包脚本:把插件源码打成单个 tarball,便于拷贝到其它设备。
+# dsh-dock 打包脚本:把自研插件源码+安装脚本打成单个 tarball,便于拷贝到其它设备。
 #
 # 用法:
 #   bash pack.sh                 # 生成 dsh-dock-bundle-<日期>.tar.gz
@@ -8,11 +8,8 @@
 # 目标设备上解压后一条命令安装:
 #   tar xzf dsh-dock-bundle-*.tar.gz && bash dsh-dock/install.sh
 #
-# 若目标设备无法访问 npm registry(离线),可先把 dsh-cost-crystal 的
-# tarball 一并放入同目录,install.sh 会优先从本地安装:
-#   npm pack dsh-cost-crystal    # 生成 dsh-cost-crystal-*.tgz
-#   tar xzf dsh-dock-bundle-*.tar.gz -C ~/ && \
-#     cd ~/dsh-dock && npm pack dsh-cost-crystal && bash install.sh
+# 注: 第三方插件(plugins.third-party.txt 清单, 如 dshmarket)从 npm registry
+# 安装, 目标设备需要网络; 离线时 install.sh 会跳过(或先注释掉清单对应行)。
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -21,18 +18,18 @@ OUT="dsh-dock-bundle-$(date +%Y%m%d).tar.gz"
 
 cd "$HERE"
 
-# 插件目录(排除 node_modules / 日志 / 临时文件)
+# 自研插件目录(排除 node_modules / 日志 / 临时文件)
 PLUGINS=(
   dsh-system-restart
   dsh-system-shutdown
-  dsh-plugin-manager
   dsh-session-delete
   dsh-sidebar-cost
   dsh-safe-mode
+  dsh-whiteboard
   dsh-safe
 )
 
-ARGS=(INSTALL.md install.sh pack.sh)
+ARGS=(INSTALL.md install.sh pack.sh plugins.third-party.txt)
 for pkg in "${PLUGINS[@]}"; do
   if [ -d "$pkg" ]; then
     ARGS+=("$pkg")

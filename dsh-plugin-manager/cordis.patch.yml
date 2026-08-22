@@ -1,4 +1,0 @@
-# dsh-plugin-manager: 设置页「自定义插件」管理器（列表 + 热插拔开关）。
-- insert:
-    - id: plugin-manager
-      name: 'dsh-plugin-manager'

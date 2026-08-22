@@ -1,8 +1,9 @@
 # dsh-dock 插件安装说明（AI 可执行版）
 
 > 本文档写给**目标设备上的 AI 助手**：请按本说明完成插件安装，并在每一步之后验证结果。
-> 本设备上所有插件源码已在本目录（`dsh-dock/`）下，无需联网下载插件本体；
-> 仅 `dsh-cost-crystal` 需要从 npm registry 安装（需要网络）。
+> 本设备上所有**自研**插件源码已在本目录（`dsh-dock/`）下，无需联网下载插件本体；
+> 仅第三方/常用插件（见 `plugins.third-party.txt`，目前为 `dshmarket` 插件市场）
+> 需要从 npm registry 安装（需要网络）。
 
 ---
 
@@ -19,22 +20,26 @@ ls ~/.dsh/profiles/web/package.json
 - 若 `dsh` 命令不存在：先安装 DeepSeek Harness，再继续。
 - 若 profile 目录不存在：先运行一次 `dsh web`（或 `dsh --profile web`）完成初始化。
 - 当前工作目录应包含以下插件目录（请用 `ls` 确认）：
-  `dsh-system-restart`、`dsh-system-shutdown`、`dsh-plugin-manager`、
-  `dsh-session-delete`、`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-safe`
+  `dsh-system-restart`、`dsh-system-shutdown`、`dsh-session-delete`、
+  `dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-whiteboard`、`dsh-safe`，
+  以及第三方清单 `plugins.third-party.txt`
 
 ---
 
-## 1. 无第三方依赖（直接装即可）
+## 1. 自研插件（本地 link，直接装即可）
 
-**全部插件均为自研，零 npm 第三方依赖**——`dsh-sidebar-cost` 的数据路由
-（`/ds-balance`、`/ds-activity`）已内联自研（`cost-data-local.js` + `pricing-local.js`，
-Apache-2.0 署名），无需安装 `dsh-cost-crystal`（旧版依赖它，v0.1.1 起已移除）。
+全部自研插件零 npm 运行时依赖——`dsh-sidebar-cost` 的数据路由
+（`/ds-balance`、`/ds-activity`）已内联自研（`cost-data-local.js` + `pricing-local.js`），
+无需安装 `dsh-cost-crystal`；`dsh-whiteboard` 的 Excalidraw 客户端已预构建
+（`lib/vendor`），无需 node_modules。
 
-无需提前安装任何包，直接进入第 2 节安装本地 link 插件。
+无需提前安装任何包，先进入第 2 节安装本地 link 插件。
 
 ---
 
-## 2. 安装本地 link 插件
+## 2. 安装插件（本地 link + 第三方 npm）
+
+### 2.1 本地自研插件
 
 对以下每个插件，用**绝对路径**执行（`<ABS>` 替换为当前目录的绝对路径，
 可用 `pwd` 获取）。按下列顺序安装：
@@ -42,19 +47,31 @@ Apache-2.0 署名），无需安装 `dsh-cost-crystal`（旧版依赖它，v0.1.
 ```bash
 dsh plugin --profile web add "link:<ABS>/dsh-system-restart"
 dsh plugin --profile web add "link:<ABS>/dsh-system-shutdown"
-dsh plugin --profile web add "link:<ABS>/dsh-plugin-manager"
 dsh plugin --profile web add "link:<ABS>/dsh-session-delete"
 dsh plugin --profile web add "link:<ABS>/dsh-sidebar-cost"
 dsh plugin --profile web add "link:<ABS>/dsh-safe-mode"
+dsh plugin --profile web add "link:<ABS>/dsh-whiteboard"
 ```
 
 每个插件安装后，`dsh plugin` 会自动把它追加进
 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`（声明了
 `dsh.bundle` 的包会自动挂载，无需手动改 `cordis.patch.yml`）。
 
-验证：安装完 6 个后，`package.json` 的 `dsh.profile.bundles` 应包含（顺序无关）：
-`dsh-system-restart`、`dsh-system-shutdown`、`dsh-plugin-manager`、
-`dsh-session-delete`、`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-cost-crystal`。
+### 2.2 第三方/常用插件（需要网络）
+
+清单在 `plugins.third-party.txt`，每行一个 `包名;说明`（`#` 开头为注释、空行忽略），
+对每一项执行 `dsh plugin add` 即可（目前只有 dshmarket）：
+
+```bash
+dsh plugin --profile web add dshmarket
+```
+
+安装后重启，**设置页出现「插件市场」入口**（浏览/搜索/一键安装社区插件）。
+以后新增常用插件：往清单加一行，重跑 `install.sh` 自动装上。
+
+验证：安装完后，`package.json` 的 `dsh.profile.bundles` 应包含（顺序无关）：
+`dsh-system-restart`、`dsh-system-shutdown`、`dsh-session-delete`、
+`dsh-sidebar-cost`、`dsh-safe-mode`、`dsh-whiteboard`；依赖里应出现 `dshmarket`。
 
 ---
 
@@ -92,8 +109,7 @@ dsh-safe status
 | 成本条 | 显示余额（如 ¥xx.xx）、波峰/低峰徽章、切换倒计时 |
 | 成本条点击 ▸ | 展开详情面板（模型/速率/余额明细/预测） |
 | 会话列表 ⋯ 菜单 | 出现「删除会话」 |
-| 设置页 | 出现「自定义插件」管理器 |
-| 右上角 | **不再出现** dsh-cost-crystal 的悬浮余额卡片 |
+| 设置页 | 出现「插件市场」入口（dshmarket） |
 | 页面顶部 | **不出现**安全模式横幅（有横幅 = 有插件被隔离，见第 7 节） |
 
 ---
@@ -107,8 +123,10 @@ dsh-safe status
 - **重启后按钮/卡片没出现**：检查浏览器 Console 是否有
   `dsh-sidebar-cost` / `dsh-system-restart` 相关报错；确认
   `package.json` 的 bundles 列表包含对应包名。
-- **成本条显示「查询失败」**：确认 `dsh-cost-crystal` 已安装且
-  `DEEPSEEK_API_KEY` 已在 dsh 环境配置（余额查询走官方 `/user/balance`）。
+- **成本条显示「查询失败」**：确认 `DEEPSEEK_API_KEY` 已在 dsh 环境配置
+  （余额查询走官方 `/user/balance`，数据路由为自研内联实现）。
+- **第三方插件安装失败/无网络**：`dshmarket` 等需联网访问 npm registry；
+  离线环境把 `plugins.third-party.txt` 对应行注释掉即可，自研插件不受影响。
 - **重复安装**：本安装幂等，重复执行同一命令无害（pnpm 跳过已装版本）。
 
 ---
@@ -116,13 +134,13 @@ dsh-safe status
 ## 6. 卸载
 
 ```bash
-dsh plugin --profile web remove dsh-cost-crystal
+dsh plugin --profile web remove dshmarket
 dsh plugin --profile web remove dsh-system-restart
 dsh plugin --profile web remove dsh-system-shutdown
-dsh plugin --profile web remove dsh-plugin-manager
 dsh plugin --profile web remove dsh-session-delete
 dsh plugin --profile web remove dsh-sidebar-cost
 dsh plugin --profile web remove dsh-safe-mode
+dsh plugin --profile web remove dsh-whiteboard
 rm -f "$HOME/.local/bin/dsh-safe"
 ```
 

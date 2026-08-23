@@ -169,20 +169,24 @@ Loader **连模块都不会 import**。安全模式把坏插件的行写进
 
 **端口即模式指示灯**：正常模式 `3080`，安全模式 `9527`；插件修好解除隔离后自动回 `3080`。
 
-### 自动进入安全模式（推荐：透明包装器）
+### 自动进入安全模式（推荐：透明包装器 · 劫持式）
 
-安装一次，之后**任何启动方式**（首次启动 / 手动重启 / 点重启按钮）都会自动：
-插件有问题 → 隔离 → 9527 安全模式；插件健康 → 3080 正常模式。
+安装一次，之后**每一条启动路径**（容器/服务监督器、shell 敲 `dsh`、点「重启 DSH」按钮）
+都会自动：插件有问题 → 隔离 → 9527 安全模式；插件健康 → 3080 正常模式。
 
 ```bash
-bash dsh-safe/install-wrapper.sh        # 安装到 ~/.local/bin/dsh(升级免疫)
-which dsh                               # 应显示 ~/.local/bin/dsh
+bash dsh-safe/install-wrapper.sh            # 劫持式安装(包装器=真 dsh 所在路径本体)
+ls -l "$(dirname "$(command -v dsh)")/dsh"* # 应看到: dsh(包装器) + dsh.real(真 dsh)
+dsh --version                               # 应正常透传
 ```
 
-- **升级免疫**：包装器在用户目录（npm 不碰），写死调用真 dsh；
-  npm 升级 `@deepseek-ai/dsh` 不影响自动降级能力。
-- 需要 PATH 里 `~/.local/bin` 排在 npm-global 之前（脚本会自动检查）。
-- 卸载：`bash dsh-safe/install-wrapper.sh uninstall`。
+- **为什么是劫持式**：服务监督器用绝对路径 `node <全局bin>/dsh web` 启动 dsh，
+  PATH 层包装器（`~/.local/bin`）会被绕过。劫持式把包装器放在<全局bin>本体、
+  真 dsh 改名 `dsh.real`，**任何启动方式都先过体检**（本机已实测：监督器重启
+  后进程链为 监督器 → 包装器 → dsh.real）。
+- **升级免疫**：npm 升级 `@deepseek-ai/dsh` 后若 `bin/dsh` 被换回原样，重跑
+  `bash dsh-safe/install-wrapper.sh` 重新劫持即可（不破坏数据）。
+- 卸载：`bash dsh-safe/install-wrapper.sh uninstall`（自动还原真 dsh）。
 
 ### 手动入口（dsh-safe CLI，兜底）
 

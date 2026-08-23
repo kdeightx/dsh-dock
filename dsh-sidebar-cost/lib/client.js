@@ -172,7 +172,8 @@ window.__ModuleLoader__.load({
       if (data.ok !== true) return data.reason === 'no-key' ? '未配置 API key' : '查询失败'
       var list = pickCurrencies(data.infos)
       var main = fmt(list[0] || { currency: 'CNY', total: '--' })
-      var mode = data.period && data.period.mode === 'peak' ? '波峰' : '低峰'
+      var dayPrefix = (data.period && data.period.dayLabel) || (data.period && (data.period.dayKind === 'weekend' ? '周末' : data.period.dayKind === 'weekday' ? '工作日' : '')) || ''
+      var mode = dayPrefix + (data.period && data.period.mode === 'peak' ? '·波峰' : '·低峰')
       var u24 = data.usage24h
       var u24Text = ''
       if (u24) {
@@ -250,12 +251,14 @@ window.__ModuleLoader__.load({
       var list = pickCurrencies(data && data.infos)
       var main = fmt(list[0] || { currency: 'CNY', total: '--' })
       var peak = data && data.period ? data.period.mode === 'peak' : null
+      var dayKind = data && data.period ? data.period.dayKind : null
+      var dayPrefix = (data && data.period && data.period.dayLabel) || (dayKind === 'weekend' ? '周末' : dayKind === 'weekday' ? '工作日' : '') || ''
 
       var stripKids = []
       stripKids.push(react.createElement('span', { key: 'dot', className: 'dsc-dot' + (!data || (data.ok === true && !data.isAvailable) ? ' dsc-dot--err' : (activity && activity.active ? ' dsc-dot--active' : '')) }))
       stripKids.push(react.createElement('span', { key: 'amt', className: 'dsc-amt', style: { fontSize: '12px' } }, data && data.ok === true ? main.sym + main.text : '--'))
       if (peak !== null) {
-        stripKids.push(react.createElement('span', { key: 'badge', className: 'dsc-badge ' + (peak ? 'dsc-badge--peak' : 'dsc-badge--offpeak') }, peak ? '波峰' : '低峰'))
+        stripKids.push(react.createElement('span', { key: 'badge', className: 'dsc-badge ' + (peak ? 'dsc-badge--peak' : 'dsc-badge--offpeak') }, dayPrefix + (dayPrefix ? '·' : '') + (peak ? '波峰' : '低峰')))
       }
       if (data && data.period && data.period.nextAt) {
         stripKids.push(react.createElement('span', { key: 'next', className: 'dsc-next' }, countdownShort(data.period.nextAt, now)))
@@ -340,8 +343,8 @@ window.__ModuleLoader__.load({
             var badge = react.createElement('span', {
               key: 'badge',
               className: 'dsc-badge ' + (peak ? 'dsc-badge--peak' : 'dsc-badge--offpeak'),
-              title: '波峰时段(本地): ' + localWindows(data.period.windowsUtc)
-            }, peak ? '波峰' : '低峰')
+              title: (dayKind === 'weekend' ? '今日为周末,全天低谷' : '周一至周五') + ';波峰时段(UTC): ' + localWindows(data.period.windowsUtc)
+            }, dayPrefix + (dayPrefix ? '·' : '') + (peak ? '波峰' : '低峰'))
             var next = react.createElement('span', {
               key: 'next',
               className: 'dsc-next'

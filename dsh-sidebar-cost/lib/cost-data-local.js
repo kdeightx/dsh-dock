@@ -7,9 +7,9 @@
 // 目的: 让 dsh-sidebar-cost 的成本功能完全自研,不再依赖第三方包 dsh-cost-crystal;
 //       也免去「patch 第三方包会被升级覆盖」的维护。
 // ─────────────────────────────────────────────────────────────────────────────
-import { PEAK_UTC, modeAt, nextBoundary, priceAt, costOf } from './pricing-local.js'
+import { PEAK_UTC, modeAt, nextBoundary, dayKindAt, dayLabelAt, priceAt, costOf } from './pricing-local.js'
 
-export { PEAK_UTC, modeAt, nextBoundary }
+export { PEAK_UTC, modeAt, nextBoundary, dayKindAt, dayLabelAt }
 
 // ── 缓存(与原版一致的阈值) ───────────────────────────────────────────────────
 const cacheState = {
@@ -120,7 +120,8 @@ function createBalance(credentials, shell) {
     if (!resolved) return { ok: false, reason: 'no-key' }
     try {
       const spec = shell.resolve({
-        command: 'curl -sf -m 10 https://api.deepseek.com/user/balance -H "Authorization: Bearer $DS_KEY"',
+        // env -u 剥离 http(s)_proxy: 直连官方接口(本机代理失效时余额仍可查)
+        command: 'env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY curl -sf -m 10 https://api.deepseek.com/user/balance -H "Authorization: Bearer $DS_KEY"',
         env: { DS_KEY: resolved.value },
         timeoutMs: 15000,
         stdoutMaxBytes: 4096

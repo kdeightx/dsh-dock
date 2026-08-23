@@ -12,7 +12,7 @@
 // 浮层隐藏(其浮层轮询频繁 readSession 解压会话,是 dsh 卡顿主因)。
 // 0.1.1 起数据路由内联(见 cost-data-local.js,Apache-2.0),彻底移除第三方
 // 依赖;浮层本身随之不存在,无需再隐藏/删除。
-import { createCostData, PEAK_UTC, modeAt, nextBoundary } from './cost-data-local.js'
+import { createCostData, PEAK_UTC, modeAt, nextBoundary, dayKindAt, dayLabelAt } from './cost-data-local.js'
 
 export function apply(ctx) {
   const webServer = ctx.get('webServer')
@@ -37,7 +37,7 @@ export function apply(ctx) {
       } catch { /* keep null */ }
       const payload = Object.assign({}, balance, {
         asOf: now,
-        period: { mode: modeAt(now), nextAt: nextBoundary(now), windowsUtc: PEAK_UTC },
+        period: { mode: modeAt(now), dayKind: dayKindAt(now), dayLabel: dayLabelAt(now), nextAt: nextBoundary(now), windowsUtc: PEAK_UTC },
         usage24h: await data.cachedUsage24h(),
         source: sessionId ? await data.cachedSessionSource(sessionId) : null,
         activity: sessionId ? await data.activity.activityFor(sessionId) : null,

@@ -1,5 +1,11 @@
 // dsh-system-restart browser half: the sidebar-foot 「重启 DSH」 row, styled
 // like the settings trigger, with a DSH-styled confirm modal.
+//
+// Flow (deliberately simple): click confirm → POST /action → the button shows
+// 「正在重启…」 and the page polls the origin every 1.5s. Once the server has
+// dropped and come back (or 10s passed without any drop, as a fallback), the
+// page reloads itself. A freshly loaded page is the confirmation that the
+// restart happened.
 window.__ModuleLoader__.load({
   id: 'dsh-system-restart',
   factory: (require) => {
@@ -128,53 +134,130 @@ window.__ModuleLoader__.load({
     }, react.createElement('path', { d: 'M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2' }))
     const ICON = () => ActivityIcon
 
+    const RESTART_RELOAD_FALLBACK_MS = 10000 // 从未观测到断连时的兜底刷新时限
+    const RESTART_TIMEOUT_MS = 60000         // 超过该时长仍未恢复 → 提示手动启动
+
+    const trySignal = (ms) => {
+      return (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+        ? AbortSignal.timeout(ms)
+        : undefined
+    }
+
     function RestartButton({ wide }) {
       const [hovered, setHovered] = react.useState(false)
-      const [online, setOnline] = react.useState(true)
-      // 实时探测后台连接状态:3s 一次轻量请求,失败即离线(重启中)。
+      const [online, setOnline] = react.useState(true)          // 图标颜色(非重启期)
+      const [restarting, setRestarting] = react.useState(false) // 已点重启,等待恢复
+      const [elapsed, setElapsed] = react.useState(0)           // 重启等待秒数
+      const [timedOut, setTimedOut] = react.useState(false)     // 60s 未恢复
+      const stateRef = react.useRef({ alive: true, sawDown: false, clickAt: 0, restarting: false })
+
+      // 轮询探活(永远在跑,驱动图标颜色 + 重启恢复检测)
       react.useEffect(() => {
-        let alive = true
-        const ping = () => {
-          fetch('/', { cache: 'no-store' })
-            .then((r) => {
-              if (!alive) return
-              try { r.body && r.body.cancel() } catch (e) { /* best effort */ }
-              setOnline(r.ok)
-            })
-            .catch(() => { if (alive) setOnline(false) })
+        const st = stateRef.current
+        st.alive = true
+        const probe = async () => {
+          let ok = false
+          try {
+            const r = await fetch('/', { cache: 'no-store', signal: trySignal(3000) })
+            ok = r.ok
+          } catch { /* 断连 */ }
+          if (!st.alive) return
+          if (!ok) {
+            st.sawDown = true
+            setOnline(false)
+            return
+          }
+          setOnline(true)
+          if (!st.restarting) return
+          // 重启期:断连后恢复 → 新进程就绪 → 刷新页面
+          if (st.sawDown) {
+            location.reload()
+            return
+          }
+          // 兜底:从未观测到断连(空窗小于轮询间隔)→ 到点直接刷新(无害)
+          if (Date.now() - st.clickAt > RESTART_RELOAD_FALLBACK_MS) {
+            location.reload()
+          }
         }
-        ping()
-        const t = setInterval(ping, 3000)
-        return () => { alive = false; clearInterval(t) }
+        probe()
+        const probeT = setInterval(probe, 1500)
+        const tickT = setInterval(() => {
+          if (!st.alive) return
+          if (st.restarting) {
+            const sec = Math.max(0, Math.floor((Date.now() - st.clickAt) / 1000))
+            setElapsed(sec)
+            if (sec >= Math.floor(RESTART_TIMEOUT_MS / 1000) && !timedOut) setTimedOut(true)
+          }
+        }, 1000)
+        return () => { st.alive = false; clearInterval(probeT); clearInterval(tickT) }
       }, [])
+
       const click = () => {
         showModal({
           title: '重启 DSH',
           body: el('div', 'display:flex;flex-direction:column;gap:6px', [
             text('确定重启 DSH Web 进程？'),
-            text('当前连接会中断，会话数据已持久化，不会丢失。', 'font-size:12px;color:var(--dsw-alias-label-secondary,#666)')
+            text('当前连接会中断,会话数据已持久化,不会丢失。新进程就绪后页面将自动刷新。', 'font-size:12px;color:var(--dsw-alias-label-secondary,#666)')
           ]),
           confirmLabel: '确认重启',
           busyLabel: '执行中…',
           cancelLabel: '取消',
           onConfirm: async () => {
-            fetch('/dsh-system-restart/action', { method: 'POST' }).catch(() => { /* process is going away */ })
+            const st = stateRef.current
+            st.sawDown = false
+            st.clickAt = Date.now()
+            st.restarting = true
+            setRestarting(true)
+            setTimedOut(false)
+            setElapsed(0)
+            try {
+              await fetch('/dsh-system-restart/action', { method: 'POST' })
+            } catch { /* process is going away */ }
             return true
           }
         })
       }
+
       const IconComponent = ICON()
       const style = wide ? btnStyle : btnRailStyle
+      // 状态徽标(视觉提示;逻辑仍是最简的「断连→恢复→自动刷新」)
+      const pillText = restarting
+        ? (timedOut ? '未恢复' : '正在重启 · ' + elapsed + 's')
+        : (online ? '运行中' : '离线')
+      const pill = restarting
+        ? (timedOut
+          ? { fg: '#f87171', bg: 'rgba(248,113,113,.14)' }
+          : { fg: '#f59e0b', bg: 'rgba(245,158,11,.14)' })
+        : (online
+          ? { fg: '#34d399', bg: 'rgba(52,211,153,.12)' }
+          : { fg: '#f87171', bg: 'rgba(248,113,113,.12)' })
+      const title = restarting
+        ? (timedOut ? 'DSH 长时间未恢复,请在终端执行 dsh web' : '正在重启,新进程就绪后页面将自动刷新')
+        : (online ? 'DSH 运行中 · 点击重启' : 'DSH 离线(重启中) · 点击重启')
       return react.createElement('button', {
         type: 'button',
         style: hovered ? { ...style, background: 'var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))' } : style,
-        title: online ? 'DSH 运行中 · 点击重启' : 'DSH 离线(重启中) · 点击重启',
+        title: title,
+        disabled: restarting,
         onMouseEnter: () => setHovered(true),
         onMouseLeave: () => setHovered(false),
         onClick: click
       }, [
-        IconComponent !== null && react.createElement(IconComponent, { size: wide ? 16 : 18, online }),
-        wide && react.createElement('span', null, '重启 DSH')
+        IconComponent !== null && react.createElement(IconComponent, { size: wide ? 16 : 18, online: restarting ? false : online }),
+        wide && react.createElement('span', null, '重启 DSH'),
+        wide && react.createElement('span', {
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            flex: 'none',
+            fontSize: '11px',
+            lineHeight: '16px',
+            padding: '0 6px',
+            borderRadius: '8px',
+            color: pill.fg,
+            background: pill.bg
+          }
+        }, pillText)
       ])
     }
 

@@ -15,7 +15,7 @@ DeepSeek Harness 插件工具库（monorepo）——为 DSH Web 添加各种扩�
 | [dsh-session-delete](./dsh-session-delete/) | 侧栏会话 ⋯ 菜单注入「删除会话」：红字菜单项、DSH 风格确认框、彻底删除任意会话（同名候选选择、模式/目录/时间信息展示、运行中会话保护） | `dsh plugin --profile web add dsh-session-delete` |
 | [dsh-system-restart](./dsh-system-restart/) | 侧边栏底部「重启 DSH」按钮（与设置按钮同款排版）：确认后自动拉起新进程完成热重启，会话数据不丢失 | `dsh plugin --profile web add dsh-system-restart` |
 | [dsh-system-shutdown](./dsh-system-shutdown/) | 侧边栏底部「关闭 DSH」按钮：确认后优雅退出 DSH Web 进程 | `dsh plugin --profile web add dsh-system-shutdown` |
-| [dsh-sidebar-cost](./dsh-sidebar-cost/) | 侧边栏成本卡片：余额/波峰低峰/切换倒计时/近 24h 话费，隐藏 cost-crystal 悬浮卡 | `dsh plugin --profile web add dsh-sidebar-cost` |
+| [dsh-sidebar-cost](./dsh-sidebar-cost/) | 侧边栏成本卡片：余额/波峰低峰（工作日与周末徽章）/切换倒计时/近 24h 话费/下条预测；数据路由自研，零第三方依赖 | `dsh plugin --profile web add dsh-sidebar-cost` |
 | [dsh-safe-mode](./dsh-safe-mode/) | **安全模式面板**：配合 dsh-safe 脚本，插件被改坏导致 dsh 打不开时，以安全模式进入并在页面顶部横幅救援（解除隔离/移除） | `dsh plugin --profile web add dsh-safe-mode` |
 
 ### 🧪 测试中
